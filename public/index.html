@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Killer Keys — Tip &amp; Request App</title>
+<style>
+:root{--gold:#f5b942;--gold-dim:#c98f2b;--bg:#000;--panel:#111;--panel2:#1a1a1a;--line:#2a2a2a;--text:#f2ede6;--muted:#a8a29a;--green:#22c55e;--red:#ef4444}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+a{color:var(--gold)}
+header{padding:14px 20px 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.logo{font-weight:800;letter-spacing:.04em;font-size:22px;white-space:nowrap}
+.logo b{color:var(--gold)}
+.sub{color:var(--muted);font-size:12px;letter-spacing:.14em;text-transform:uppercase}
+.badge{background:var(--gold);color:#000;font-weight:800;font-size:11px;padding:3px 10px;border-radius:99px;letter-spacing:.06em}
+.viewas{margin-left:auto;display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px;letter-spacing:.1em}
+.viewas button{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:99px;padding:7px 16px;font-weight:700;cursor:pointer}
+.viewas button.on{background:var(--green);border-color:var(--green);color:#000}
+nav{display:flex;gap:8px;flex-wrap:wrap;padding:14px 20px;border-bottom:1px solid var(--line)}
+nav button{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:99px;padding:9px 16px;font-weight:700;cursor:pointer;font-size:14px}
+nav button.on{background:#fff;color:#000;border-color:#fff}
+nav button.gold{background:var(--gold);color:#000;border-color:var(--gold)}
+nav button:hover{border-color:var(--gold)}
+main{max-width:1000px;margin:0 auto;padding:18px 20px 80px}
+h1{font-size:44px;line-height:1.05;margin:8px 0 10px;font-weight:900;letter-spacing:.01em}
+h1 span{color:var(--gold)}
+.lede{color:var(--muted);font-size:15px;line-height:1.55;max-width:720px}
+.lede b{color:var(--text)}
+.search{display:flex;gap:8px;margin:18px 0 12px}
+.search input{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:12px;color:var(--text);padding:13px 16px;font-size:16px}
+.search input:focus{outline:2px solid var(--gold)}
+.search button{background:var(--panel);border:1px solid var(--gold);color:var(--gold);border-radius:12px;padding:0 16px;font-weight:700;cursor:pointer}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.filters button{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:99px;padding:8px 14px;font-weight:600;cursor:pointer;font-size:13px}
+.filters button.on{background:var(--gold);color:#000;border-color:var(--gold)}
+.song{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:10px;cursor:pointer}
+.song:hover{border-color:var(--gold)}
+.song .tt{font-weight:800;font-size:17px}
+.song .aa{color:var(--muted);font-size:13px;margin-top:2px}
+.song .tags{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+.tag{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;background:#2b2b2b;border:1px solid #3a3a3a;border-radius:6px;padding:2px 7px;color:#ffd479}
+.tag.banger{background:#3a2a00;border-color:#6b4d00}
+.tag.country{background:#1d2b1d;border-color:#2f5a2f}
+.song .star{color:var(--gold);font-size:18px}
+.song .chev{margin-left:auto;color:var(--gold);font-size:22px;font-weight:800}
+.song .min{font-size:12px;color:var(--muted)}
+.empty{color:var(--muted);padding:30px 0;text-align:center}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}
+.panel h2{margin:0 0 12px;font-size:22px}
+label{display:block;font-size:13px;color:var(--muted);margin:12px 0 4px}
+input[type=text],input[type=number],textarea,select{width:100%;background:#0d0d0d;border:1px solid var(--line);border-radius:10px;color:var(--text);padding:11px 12px;font-size:15px}
+textarea{min-height:120px;font-family:ui-monospace,Menlo,Consolas,monospace}
+.btn{background:var(--gold);color:#000;border:0;border-radius:99px;padding:11px 22px;font-weight:800;cursor:pointer;font-size:15px}
+.btn.ghost{background:var(--panel);color:var(--text);border:1px solid var(--line)}
+.btn.danger{background:var(--red);color:#fff}
+.btnrow{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+.chartbox{background:#fff;color:#000;border-radius:10px;padding:16px;overflow:auto;max-height:60vh}
+.chartbox *{max-width:100%}
+.chip{display:inline-block;background:#222;border:1px solid #444;border-radius:99px;padding:4px 10px;font-size:12px;margin:2px 4px 2px 0}
+.setlist-row{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:8px;cursor:pointer}
+.setlist-row:hover{border-color:var(--gold)}
+.setlist-row .n{font-weight:800}
+.setlist-row .c{color:var(--muted);font-size:13px;margin-left:auto}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--gold);color:#000;font-weight:800;padding:10px 20px;border-radius:99px;display:none;z-index:50}
+.small{color:var(--muted);font-size:13px}
+hr{border:0;border-top:1px solid var(--line);margin:18px 0}
+@media (max-width:640px){h1{font-size:32px}.logo{font-size:18px}}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">THE <b>KILLER KEYS</b></div>
+  <div class="sub">Tip &amp; Request App</div>
+  <div class="badge">REQUEST BOARD &middot; FREE</div>
+  <div class="viewas">VIEW AS
+    <button id="viewPerformer" class="on">Performer</button>
+    <button id="viewFan">Fan preview</button>
+  </div>
+</header>
+<nav id="topnav">
+  <button data-view="board" class="on">Song Board</button>
+  <button data-view="add" class="gold">+ Add song</button>
+  <button data-view="queue">Performer Queue</button>
+  <button data-view="setlists">Setlists</button>
+  <button data-view="notes">Performance Notes</button>
+</nav>
+<main id="main"></main>
+<div class="toast" id="toast"></div>
+<script>
+const $ = (s) => document.querySelector(s);
+const main = $('#main');
+const toastEl = $('#toast');
+let songs = [];
+let setlists = [];
+let queue = [];
+let notes = '';
+let view = 'board';
+let filterTag = 'Favorites';
+let searchQ = '';
+let performerMode = true;
+let currentSong = null;
+let currentSetlist = null;
+
+const TAGS = ['Favorites','All','60s','70s','80s','90s','2000s','2010s','2020s','Country','Medleys','Bangers','Most requested'];
+function toast(msg){ toastEl.textContent = msg; toastEl.style.display='block'; setTimeout(()=>toastEl.style.display='none', 2200); }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+async function api(path, opts){
+  const r = await fetch(path, Object.assign({headers:{'Content-Type':'application/json'}}, opts||{}));
+  if(!r.ok){ const t = await r.text(); throw new Error(t || ('HTTP '+r.status)); }
+  return r.json();
+}
+
+function visibleSongs(){
+  let list = songs.filter(s => s.visible);
+  if(filterTag === 'Favorites') list = list.filter(s => s.favorite);
+  else if(filterTag !== 'All' && filterTag !== 'Most requested') list = list.filter(s => (s.tags||[]).includes(filterTag));
+  if(searchQ){
+    const q = searchQ.toLowerCase();
+    list = list.filter(s => s.title.toLowerCase().includes(q) || (s.artist||'').toLowerCase().includes(q));
+  }
+  return list;
+}
+
+function renderBoard(){
+  const list = visibleSongs();
+  main.innerHTML = `
+    <h1>REQUEST A <span>$ONG</span></h1>
+    <p class="lede">Requests are free. Tap a song to open it — view its chart, edit it, or add it to the queue.
+    <b>${songs.filter(s=>s.visible).length} songs on the board tonight.</b>
+    The board opens on the band's <b>&#9733; Favorites</b> — tap <b>All</b> or any era to browse everything.</p>
+    <div class="search"><input id="q" type="text" placeholder="Search songs or artists..." value="${esc(searchQ)}"><button id="dictBtn" title="Dictation">&#127908; Dictate</button></div>
+    <div class="filters">${TAGS.map(t=>`<button data-tag="${t}" class="${filterTag===t?'on':''}">${t==='Favorites'?'&#9733; ':''}${t}</button>`).join('')}</div>
+    <div id="list">${list.length ? list.map(songRow).join('') : '<div class="empty">No songs match. Try another search or filter.</div>'}</div>`;
+  $('#q').addEventListener('input', e => { searchQ = e.target.value; renderListOnly(); });
+  $('#q').addEventListener('keydown', e => { if(e.key==='Enter') e.target.blur(); });
+  document.querySelectorAll('.filters button').forEach(b => b.addEventListener('click', () => { filterTag = b.dataset.tag; renderBoard(); }));
+  document.querySelectorAll('.song').forEach(el => el.addEventListener('click', () => openSong(Number(el.dataset.id))));
+  const d = $('#dictBtn');
+  if(d) d.addEventListener('click', () => toast('Dictation: tap the mic on your keyboard to dictate a search.'));
+}
+function renderListOnly(){
+  const list = visibleSongs();
+  const el = $('#list'); if(!el) return;
+  el.innerHTML = list.length ? list.map(songRow).join('') : '<div class="empty">No songs match. Try another search or filter.</div>';
+  el.querySelectorAll('.song').forEach(n => n.addEventListener('click', () => openSong(Number(n.dataset.id))));
+}
+function songRow(s){
+  const tags = (s.tags||[]).map(t=>`<span class="tag ${t.toLowerCase()==='bangers'?'banger':t.toLowerCase()==='country'?'country':''}">${esc(t)}</span>`).join('');
+  const min = s.minTipCents ? `<span class="min">min $${(s.minTipCents/100).toFixed(0)}</span>` : '';
+  return `<div class="song" data-id="${s.id}">
+    <div style="flex:1;min-width:0">
+      <div class="tt">${esc(s.title)} ${s.favorite?'<span class="star">&#9733;</span>':''}</div>
+      <div class="aa">${esc(s.artist||'—')}</div>
+      <div class="tags">${tags}</div>
+    </div>
+    ${s.hasChart?'<span title="Has chart" style="font-size:20px">&#127926;</span>':''}
+    ${min}
+    <span class="chev">&rsaquo;</span>
+  </div>`;
+}
+
+async function openSong(id){
+  try{
+    const { song } = await api('/api/songs/'+id);
+    currentSong = song;
+    const tags = (song.tags||[]).join(', ');
+    main.innerHTML = `
+    <p><a href="#" id="backBtn" style="color:var(--gold);font-weight:700">&lsaquo; Back to Song Board</a></p>
+    <h1 style="font-size:32px">${esc(song.title)}</h1>
+    <p class="lede">${esc(song.artist||'—')} &middot; ${song.favorite?'&#9733; Favorite &middot; ':''}${song.visible?'Visible on board':'Hidden from board'}${song.minTipCents?` &middot; Min tip $${(song.minTipCents/100).toFixed(0)}`:''}</p>
+    <div class="btnrow">
+      <button class="btn" id="editBtn">Edit song &amp; chart</button>
+      <button class="btn ghost" id="queueBtn">+ Add to queue</button>
+      <button class="btn ghost" id="favBtn">${song.favorite?'&#9733; Unfavorite':'&#9734; Favorite'}</button>
+      <button class="btn ghost" id="visBtn">${song.visible?'Hide from board':'Show on board'}</button>
+    </div>
+    <hr>
+    <h2 style="font-size:20px">Chord chart</h2>
+    ${song.chartHtml ? `<div class="chartbox">${song.chartHtml}</div>` : '<p class="small">No chart saved for this song yet. Tap Edit to paste one.</p>'}
+    ${song.chartSource ? `<p class="small">Source: <a href="${esc(song.chartSource)}" target="_blank" rel="noopener">${esc(song.chartSource)}</a></p>` : ''}
+    <div id="editArea"></div>`;
+    $('#backBtn').addEventListener('click', e => { e.preventDefault(); view='board'; renderBoard(); });
+    $('#favBtn').addEventListener('click', async () => { await api('/api/songs/'+id, {method:'PUT', body: JSON.stringify({favorite: !song.favorite})}); toast(song.favorite?'Removed from favorites':'Added to favorites'); openSong(id); loadSongs(); });
+    $('#visBtn').addEventListener('click', async () => { await api('/api/songs/'+id, {method:'PUT', body: JSON.stringify({visible: !song.visible})}); toast(song.visible?'Hidden from board':'Shown on board'); openSong(id); loadSongs(); });
+    $('#queueBtn').addEventListener('click', async () => { await api('/api/queue', {method:'POST', body: JSON.stringify({songId: id, songTitle: song.title})}); toast('Added to queue'); });
+    $('#editBtn').addEventListener('click', () => renderSongEditor(song));
+  }catch(e){ toast('Could not open song: '+e.message); }
+}
+
+function renderSongEditor(song){
+  const el = $('#editArea');
+  el.innerHTML = `
+  <div class="panel" style="margin-top:18px">
+    <h2>Edit song</h2>
+    <label>Title</label><input type="text" id="eTitle" value="${esc(song.title)}">
+    <label>Artist</label><input type="text" id="eArtist" value="${esc(song.artist||'')}">
+    <label>Tags (comma-separated: 60s, 80s, Country, Medleys, Bangers...)</label><input type="text" id="eTags" value="${esc((song.tags||[]).join(', '))}">
+    <label>Minimum tip (dollars, 0 = none)</label><input type="number" id="eMin" min="0" step="1" value="${(song.minTipCents||0)/100}">
+    <label>Chart source link (optional)</label><input type="text" id="eSrc" value="${esc(song.chartSource||'')}">
+    <label>Chord chart (paste HTML or plain text — plain text is kept as-is)</label><textarea id="eChart" rows="12">${esc(song.chartHtml||'')}</textarea>
+    <label>Chart font size</label><input type="number" id="eSize" min="10" max="32" value="${song.chartSize||19}">
+    <label>Chart line spacing</label><input type="number" id="eSpacing" min="10" max="32" value="${song.chartSpacing||19}">
+    <div class="btnrow">
+      <button class="btn" id="saveSong">Save changes</button>
+      <button class="btn ghost" id="cancelEdit">Cancel</button>
+      <button class="btn danger" id="delSong">Delete song</button>
+    </div>
+  </div>`;
+  $('#cancelEdit').addEventListener('click', () => { el.innerHTML=''; });
+  $('#delSong').addEventListener('click', async () => {
+    if(!confirm('Delete "'+song.title+'" for good? Setlists keep their own entries.')) return;
+    await api('/api/songs/'+song.id, {method:'DELETE'});
+    toast('Song deleted'); await loadSongs(); view='board'; renderBoard();
+  });
+  $('#saveSong').addEventListener('click', async () => {
+    const tags = $('#eTags').value.split(',').map(t=>t.trim()).filter(Boolean);
+    const chartHtml = $('#eChart').value;
+    const body = {
+      title: $('#eTitle').value, artist: $('#eArtist').value, tags,
+      minTipCents: Math.round(Number($('#eMin').value||0)*100),
+      chartSource: $('#eSrc').value, chartHtml,
+      chartSize: Number($('#eSize').value||19), chartSpacing: Number($('#eSpacing').value||19)
+    };
+    try{
+      await api('/api/songs/'+song.id, {method:'PUT', body: JSON.stringify(body)});
+      toast('Saved'); await loadSongs(); openSong(song.id);
+    }catch(e){ toast('Save failed: '+e.message); }
+  });
+}
+
+function renderAdd(){
+  main.innerHTML = `
+  <h1 style="font-size:32px">ADD A <span>$ONG</span></h1>
+  <div class="panel">
+    <label>Title *</label><input type="text" id="aTitle" placeholder="Song title">
+    <label>Artist</label><input type="text" id="aArtist" placeholder="Artist">
+    <label>Tags (comma-separated)</label><input type="text" id="aTags" placeholder="80s, Bangers">
+    <label>Minimum tip (dollars, 0 = none)</label><input type="number" id="aMin" min="0" step="1" value="0">
+    <label>Chart (optional — paste chart HTML or plain text)</label><textarea id="aChart" rows="8" placeholder="Paste the chord chart here"></textarea>
+    <div class="btnrow"><button class="btn" id="addSave">Add song</button><button class="btn ghost" id="addCancel">Cancel</button></div>
+  </div>`;
+  $('#addCancel').addEventListener('click', () => { view='board'; renderBoard(); });
+  $('#addSave').addEventListener('click', async () => {
+    const title = $('#aTitle').value.trim();
+    if(!title){ toast('Title is required'); return; }
+    const body = {
+      title, artist: $('#aArtist').value.trim(),
+      tags: $('#aTags').value.split(',').map(t=>t.trim()).filter(Boolean),
+      minTipCents: Math.round(Number($('#aMin').value||0)*100),
+      chartHtml: $('#aChart').value
+    };
+    try{
+      const { song } = await api('/api/songs', {method:'POST', body: JSON.stringify(body)});
+      toast('Added "'+song.title+'"'); await loadSongs(); openSong(song.id);
+    }catch(e){ toast('Add failed: '+e.message); }
+  });
+}
+
+async function renderQueue(){
+  try{ const d = await api('/api/queue'); queue = d.queue || []; }catch(e){ queue = []; }
+  main.innerHTML = `
+  <h1 style="font-size:32px">PERFORMER QUEUE</h1>
+  <p class="lede">Killer Keys live — accept requests from the queue and browse the song catalogue.</p>
+  <div class="btnrow"><button class="btn ghost" id="qRefresh">Refresh queue</button></div>
+  <div style="margin-top:16px">${queue.length ? queue.map(q=>`
+    <div class="setlist-row"><div><div class="n">${esc(q.songTitle)}</div><div class="small">${esc(q.requester||'')}</div></div>
+    <span class="c"><button class="btn ghost" data-play="${q.id}">Played</button> <button class="btn ghost" data-del="${q.id}">Remove</button></span></div>`).join('')
+    : '<p class="empty">The queue is empty.</p>'}</div>`;
+  $('#qRefresh').addEventListener('click', renderQueue);
+  main.querySelectorAll('[data-play]').forEach(b => b.addEventListener('click', async () => { await api('/api/queue/'+b.dataset.play+'/play', {method:'POST'}); renderQueue(); }));
+  main.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async () => { await api('/api/queue/'+b.dataset.del+'/delete', {method:'POST'}); renderQueue(); }));
+}
+
+async function renderSetlists(){
+  try{ const d = await api('/api/setlists'); setlists = d.setlists || []; }catch(e){ setlists = []; }
+  if(currentSetlist){
+    const sl = setlists.find(s => s.id === currentSetlist);
+    if(!sl){ currentSetlist = null; return renderSetlists(); }
+    main.innerHTML = `
+    <p><a href="#" id="backSl" style="color:var(--gold);font-weight:700">&lsaquo; Back to Setlists</a></p>
+    <h1 style="font-size:32px">${esc(sl.name)}</h1>
+    <p class="lede">${sl.songs.length} songs &middot; ${esc(sl.date||'')}</p>
+    <div class="search"><input id="slQ" type="text" placeholder="Search inside this setlist..."></div>
+    <div id="slList">${sl.songs.map((e,i)=>`<div class="setlist-row"><div><div class="n">${i+1}. ${esc(e.title)}</div><div class="small">${esc(e.artist||'')}</div></div><span class="c">${e.off?'OFF':''} <button class="btn ghost" data-open="${esc(e.title)}">Open</button> <button class="btn ghost" data-rm="${i}">Remove</button></span></div>`).join('')}</div>`;
+    $('#backSl').addEventListener('click', e => { e.preventDefault(); currentSetlist=null; renderSetlists(); });
+    $('#slQ').addEventListener('input', e => {
+      const q = e.target.value.toLowerCase();
+      document.querySelectorAll('#slList .setlist-row').forEach(row => {
+        row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+      });
+    });
+    main.querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', async () => {
+      const songs = sl.songs.filter((_,i)=>i!==Number(b.dataset.rm));
+      await api('/api/setlists/'+sl.id, {method:'PUT', body: JSON.stringify({songs})});
+      toast('Removed from setlist'); renderSetlists();
+    }));
+    main.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', async () => {
+      const found = songs.find(s => s.title.toLowerCase() === b.dataset.open.toLowerCase());
+      if(found) openSong(found.id); else toast('No catalogue song matches "'+b.dataset.open+'"');
+    }));
+    return;
+  }
+  main.innerHTML = `
+  <h1 style="font-size:32px">SETLISTS</h1>
+  ${setlists.map(s=>`<div class="setlist-row" data-sl="${s.id}"><div><div class="n">${esc(s.name)}</div><div class="small">${esc(s.date||'')}</div></div><span class="c">${s.songs.length} songs</span></div>`).join('') || '<p class="empty">No setlists yet.</p>'}
+  <div class="panel" style="margin-top:18px"><h2>New setlist</h2>
+    <label>Name</label><input type="text" id="nlName" placeholder="Setlist name">
+    <div class="btnrow"><button class="btn" id="nlCreate">Create setlist</button></div>
+  </div>`;
+  main.querySelectorAll('[data-sl]').forEach(el => el.addEventListener('click', () => { currentSetlist = Number(el.dataset.sl); renderSetlists(); }));
+  $('#nlCreate').addEventListener('click', async () => {
+    const name = $('#nlName').value.trim(); if(!name){ toast('Name is required'); return; }
+    await api('/api/setlists', {method:'POST', body: JSON.stringify({name, songs: []})});
+    toast('Setlist created'); renderSetlists();
+  });
+}
+
+async function renderNotes(){
+  try{ const d = await api('/api/notes'); notes = d.body || ''; }catch(e){ notes = ''; }
+  main.innerHTML = `
+  <h1 style="font-size:32px">PERFORMANCE NOTES</h1>
+  <div class="panel">
+    <label>Notes for tonight / the band</label>
+    <textarea id="notesBox" rows="14" placeholder="Set order, keys, shout-outs, reminders...">${esc(notes)}</textarea>
+    <div class="btnrow"><button class="btn" id="notesSave">Save notes</button></div>
+  </div>`;
+  $('#notesSave').addEventListener('click', async () => {
+    await api('/api/notes', {method:'PUT', body: JSON.stringify({body: $('#notesBox').value})});
+    toast('Notes saved');
+  });
+}
+
+async function loadSongs(){
+  try{ const d = await api('/api/songs?visible=0'); songs = d.songs || []; }
+  catch(e){ songs = []; toast('Could not load songs: '+e.message); }
+}
+
+function setView(v){
+  view = v; currentSetlist = null;
+  document.querySelectorAll('#topnav button').forEach(b => b.classList.toggle('on', b.dataset.view === v));
+  if(v==='board') renderBoard();
+  else if(v==='add') renderAdd();
+  else if(v==='queue') renderQueue();
+  else if(v==='setlists') renderSetlists();
+  else if(v==='notes') renderNotes();
+  window.scrollTo(0,0);
+}
+
+document.querySelectorAll('#topnav button').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
+$('#viewPerformer').addEventListener('click', () => { performerMode=true; $('#viewPerformer').classList.add('on'); $('#viewFan').classList.remove('on'); toast('Performer view'); });
+$('#viewFan').addEventListener('click', () => { performerMode=false; $('#viewFan').classList.add('on'); $('#viewPerformer').classList.remove('on'); toast('Fan preview — requests are free, tips start at $5 (tips handled separately)'); });
+
+(async function init(){
+  await loadSongs();
+  renderBoard();
+})();
+</script>
+</body>
+</html>
