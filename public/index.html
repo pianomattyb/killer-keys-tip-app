@@ -85,7 +85,7 @@ hr{border:0;border-top:1px solid var(--line);margin:18px 0}
   <button data-view="setlists">Setlists</button>
   <button data-view="notes">Performance Notes</button>
 </nav>
-<main id="main"></main>
+<main id="main"><p class="lede" style="padding:30px 0">Loading the song board…</p></main>
 <div class="toast" id="toast"></div>
 <script>
 const $ = (s) => document.querySelector(s);
@@ -106,9 +106,16 @@ const TAGS = ['Favorites','All','60s','70s','80s','90s','2000s','2010s','2020s',
 function toast(msg){ toastEl.textContent = msg; toastEl.style.display='block'; setTimeout(()=>toastEl.style.display='none', 2200); }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 async function api(path, opts){
-  const r = await fetch(path, Object.assign({headers:{'Content-Type':'application/json'}}, opts||{}));
-  if(!r.ok){ const t = await r.text(); throw new Error(t || ('HTTP '+r.status)); }
-  return r.json();
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 15000);
+  try{
+    const r = await fetch(path, Object.assign({headers:{'Content-Type':'application/json'}, signal: ctrl.signal}, opts||{}));
+    if(!r.ok){ const tx = await r.text(); throw new Error(tx || ('HTTP '+r.status)); }
+    return r.json();
+  }catch(e){
+    if(e.name === 'AbortError') throw new Error('The app is waking up — tap again in a few seconds.');
+    throw e;
+  }finally{ clearTimeout(t); }
 }
 
 function visibleSongs(){
@@ -333,7 +340,7 @@ async function renderNotes(){
 
 async function loadSongs(){
   try{ const d = await api('/api/songs?visible=0'); songs = d.songs || []; }
-  catch(e){ songs = []; toast('Could not load songs: '+e.message); }
+  catch(e){ songs = []; main.innerHTML = '<p class="lede" style="padding:30px 0">Could not load songs: '+esc(e.message)+' <button class="btn" onclick="location.reload()">Tap to retry</button></p>'; }
 }
 
 function setView(v){
