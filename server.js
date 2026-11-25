@@ -80,7 +80,13 @@ const DEFAULT_SETTINGS = {
   overlayVisible: '3',
   overlayPublicUrl: 'https://killer-keys-tip-app.onrender.com/?view=overlay',
   overlayExplodeAt: '0',
-  globalMinCents: '0', // Tips page: 0 = Free (tips optional, $5+ if given); else every song without its own min needs this
+  globalMinCents: '0',
+  ovColorSong: '#f5b942',    // overlay colour: song requests
+  ovColorCustom: '#39c2d7',  // overlay colour: custom requests
+  ovColorShout: '#ff6fa5',   // overlay colour: shout-outs
+  overlayTest: '',           // last Test explosion payload (JSON)
+  socialYoutube: 'https://www.youtube.com/@thekillerkeysofficial', // The Killer Keys YouTube channel (button hidden if cleared)
+  socialInstagram: 'https://www.instagram.com/thekillerkeys/', // Tips page: 0 = Free (tips optional, $5+ if given); else every song without its own min needs this
 };
 const getSettings = () => {
   const out = Object.assign({}, DEFAULT_SETTINGS);
@@ -311,7 +317,8 @@ app.get('/api/fan', (req, res) => {
     .filter((r) => !keys || titleKeys(r.title).some((k) => keys.has(k)))
     .map((r) => ({ id: r.id, title: r.title, artist: r.artist || '', tags: JSON.parse(r.tags || '[]'), favorite: !!r.favorite,
       ownMinCents: Number(r.minTipCents) || 0, requiredCents: Number(r.minTipCents) > 0 ? Number(r.minTipCents) : gm }));
-  res.json({ songs, globalMinCents: gm, specialMinCents: Math.max(SPECIAL_MIN, gm), tipFloorCents: TIP_FLOOR,
+  const st0 = getSettings();
+  res.json({ social: { youtube: st0.socialYoutube || '', instagram: st0.socialInstagram || '' }, songs, globalMinCents: gm, specialMinCents: Math.max(SPECIAL_MIN, gm), tipFloorCents: TIP_FLOOR,
     viewerSetlists: lists.map((l) => l.name), version: fanVersion() });
 });
 // A cheap change stamp so View as Fan can refresh only when something changed.
@@ -319,7 +326,8 @@ const fanVersion = () => {
   const a = db.prepare('SELECT COUNT(*) n, COALESCE(SUM(LENGTH(title)+LENGTH(artist)+LENGTH(tags)+favorite*7+visible*13+minTipCents),0) h FROM songs').get();
   const l = db.prepare('SELECT COALESCE(SUM(id*31+COALESCE(viewers,1)),0) h FROM setlists').get();
   const e = db.prepare('SELECT COUNT(*) n, COALESCE(SUM(COALESCE(off,0)*position),0) h FROM setlist_entries').get();
-  return [a.n, a.h, l.h, e.n, e.h, globalMin()].join('.');
+  const st = getSettings();
+  return [a.n, a.h, l.h, e.n, e.h, globalMin(), (st.socialYoutube || '').length + ':' + (st.socialInstagram || '').length + ':' + (st.socialYoutube || '').slice(-6) + (st.socialInstagram || '').slice(-6)].join('.');
 };
 app.get('/api/fan/version', (req, res) => res.json({ version: fanVersion() }));
 
@@ -348,13 +356,39 @@ app.put('/api/settings', (req, res) => {
     if (u && !/^https?:\/\//i.test(u)) return res.status(400).json({ error: 'Public address must start with http:// or https://' });
     setSetting('overlayPublicUrl', u || DEFAULT_SETTINGS.overlayPublicUrl);
   }
+  for (const k of ['ovColorSong', 'ovColorCustom', 'ovColorShout']) {
+    if (b[k] === undefined) continue;
+    const v = String(b[k]).trim();
+    if (!/^#[0-9a-f]{6}$/i.test(v)) return res.status(400).json({ error: 'Colours must look like #f5b942' });
+    setSetting(k, v.toLowerCase());
+  }
+  for (const k of ['socialYoutube', 'socialInstagram']) {
+    if (b[k] === undefined) continue;
+    const v = String(b[k]).trim();
+    if (v && !/^https:\/\/[^\s<>"']+$/i.test(v)) return res.status(400).json({ error: 'Links must start with https://' });
+    setSetting(k, v);
+  }
   res.json({ settings: getSettings() });
 });
-app.post('/api/overlay/explode', (req, res) => { const t = Date.now(); setSetting('overlayExplodeAt', t); res.json({ ok: true, explodeAt: t }); });
+app.post('/api/overlay/explode', (req, res) => {
+  const b = req.body || {};
+  const tip = Math.max(0, Math.min(100000, Math.round(Number(b.tipCents) || 0)));
+  const test = { tipCents: tip, title: String(b.title || 'Piano Man').slice(0, 80), artist: String(b.artist || 'Billy Joel').slice(0, 80),
+    requester: String(b.requester || 'Test fan').slice(0, 40), kind: ['custom', 'shoutout'].includes(b.kind) ? b.kind : 'song' };
+  const t = Date.now();
+  setSetting('overlayTest', JSON.stringify(test)); setSetting('overlayExplodeAt', t);
+  res.json({ ok: true, explodeAt: t, test });
+});
 app.get('/api/overlay', (req, res) => {
   const st = getSettings();
   const rows = db.prepare("SELECT q.*, s.artist FROM queue q LEFT JOIN songs s ON s.id = q.songId WHERE q.status = 'queued' ORDER BY (q.tipCents > 0) DESC, q.tipCents DESC, q.createdAt").all();
-  res.json({ visible: Number(st.overlayVisible), explodeAt: Number(st.overlayExplodeAt), queue: rows.slice(0, Number(st.overlayVisible)), total: rows.length });
+  let test = null; try { test = st.overlayTest ? JSON.parse(st.overlayTest) : null; } catch (e) { test = null; }
+  // newest requests (any position in the line) so the overlay can celebrate each new arrival once
+  const recent = [...rows].sort((a, b) => b.createdAt - a.createdAt).slice(0, 12)
+    .map((r) => ({ id: r.id, songTitle: r.songTitle, artist: r.artist || '', requester: r.requester || '', tipCents: r.tipCents || 0, kind: r.kind || 'song' }));
+  res.json({ visible: Number(st.overlayVisible), explodeAt: Number(st.overlayExplodeAt), test, recent,
+    colors: { song: st.ovColorSong, custom: st.ovColorCustom, shoutout: st.ovColorShout },
+    queue: rows.slice(0, Number(st.overlayVisible)), total: rows.length });
 });
 
 // ---- notes ----

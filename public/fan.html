@@ -104,6 +104,11 @@ h1.page em{font-style:normal;color:var(--gold)}
 .screen-flash.on{animation:screenFlash 2s ease-out forwards}
 @keyframes screenFlash{0%{opacity:0}7%{opacity:1}68%{opacity:1}100%{opacity:0}}
 @media (prefers-reduced-motion:reduce){.screen-flash.on{animation:none;opacity:1}}
+.social{display:flex;gap:8px;margin:0 0 14px;flex-wrap:wrap}
+.social a{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:99px;background:var(--panel);border:1px solid var(--line);color:var(--ink);font-weight:800;font-size:15px;text-decoration:none}
+.social a svg{flex:none}
+.social a.yt svg{color:#ff3b3b}
+.social a.ig svg{color:#ff6fa5}
 .loading{color:var(--dim);padding:40px 0;text-align:center}
 </style>
 </head>
@@ -143,7 +148,7 @@ async function load(){
   const d = await api('/api/fan');
   st.songs = d.songs.map(s => Object.assign(s, { tagKeys: (s.tags||[]).map(tagKey) }));
   st.globalMin = d.globalMinCents; st.specialMin = d.specialMinCents; st.floor = d.tipFloorCents;
-  st.viewerSetlists = d.viewerSetlists || []; st.version = d.version;
+  st.viewerSetlists = d.viewerSetlists || []; st.version = d.version; st.social = d.social || {};
 }
 
 function filtered(){
@@ -177,12 +182,19 @@ function listHTML(){
 }
 
 
+const safeUrl = u => /^https:\/\/[^\s<>"']+$/i.test(String(u||'')) ? u : '';
+function socialHTML(){
+  const yt = safeUrl(st.social && st.social.youtube), ig = safeUrl(st.social && st.social.instagram);
+  if(!yt && !ig) return '';
+  return `<div class="social">${yt ? `<a class="yt" href="${esc(yt)}" target="_blank" rel="noopener"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M23 7.2a3 3 0 0 0-2.1-2.1C19 4.6 12 4.6 12 4.6s-7 0-8.9.5A3 3 0 0 0 1 7.2 31 31 0 0 0 .5 12a31 31 0 0 0 .5 4.8 3 3 0 0 0 2.1 2.1c1.9.5 8.9.5 8.9.5s7 0 8.9-.5a3 3 0 0 0 2.1-2.1 31 31 0 0 0 .5-4.8 31 31 0 0 0-.5-4.8zM9.8 15.1V8.9l5.4 3.1-5.4 3.1z"/></svg>YouTube</a>` : ''}${ig ? `<a class="ig" href="${esc(ig)}" target="_blank" rel="noopener"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4.2"/><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" stroke="none"/></svg>Instagram</a>` : ''}</div>`;
+}
 function renderBoard(){
   const n = st.songs.length;
   app.innerHTML = `
   ${PREVIEW ? `<button type="button" class="fan-return" id="backPerf">← Back to performer songbook</button>
     <p class="fan-preview-note"><b>View as Fan</b> — this is exactly what fans see on their phones: no charts, editing or performer tabs, and hidden songs never appear. It refreshes on its own when you change songs, setlists or the Tips setting. One performer-only extra: each row has a <b>Tag</b> button (fans never see it) to fix a song's tags right here.</p>` : ''}
   <h1 class="page">Request a <em>$ong</em></h1>
+  ${socialHTML()}
   <div class="tools">
     <div class="search"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#6f6a5e" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.8-3.8"/></svg>
       <input type="search" id="q" value="${esc(st.q)}" placeholder="Search songs or artists…" autocomplete="off" autocorrect="off" enterkeyhint="search" aria-label="Search songs or artists">

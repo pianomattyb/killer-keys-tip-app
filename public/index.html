@@ -124,19 +124,20 @@ body.ov-solo{background:transparent}
 body.ov-solo header,body.ov-solo nav{display:none}
 body.ov-solo main{max-width:none;padding:0}
 .ov-title{font-weight:900;letter-spacing:.2em;color:var(--gold);font-size:14px;margin-bottom:8px;text-shadow:0 2px 6px #000}
-.ov-item{display:flex;align-items:center;gap:10px;background:rgba(0,0,0,.72);border:1px solid rgba(245,185,66,.4);border-radius:10px;padding:8px 12px;margin-bottom:6px;font-weight:800;font-size:16px}
-.ov-item.first{border-color:var(--gold);font-size:19px}
+.ov-item{--kc:#f5b942;display:flex;align-items:center;gap:10px;background:rgba(0,0,0,.72);border:1px solid color-mix(in srgb,var(--kc) 45%,transparent);border-left:5px solid var(--kc);border-radius:10px;padding:8px 12px;margin-bottom:6px;font-weight:800;font-size:16px}
+.ov-kind{color:var(--kc);font-size:.62em;letter-spacing:.14em;text-transform:uppercase;font-weight:900;display:block}
+.ov-who{color:#e8e0cc;font-weight:600;font-size:.78em}
+.ovcolors{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:8px}
+.ovcolors label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:700}
+.ovcolors input[type=color]{width:100%;height:44px;border:1px solid var(--line);border-radius:10px;background:#101013;padding:3px;cursor:pointer}
+.fxbtns{display:flex;gap:8px;flex-wrap:wrap}
+.ov-item.first{border-color:var(--kc);box-shadow:0 0 18px color-mix(in srgb,var(--kc) 35%,transparent);font-size:19px}
 .ov-n{color:var(--gold);min-width:20px}
 .ov-song{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ov-artist{color:var(--muted);font-weight:600}
 .ov-tip{background:var(--green);color:#000;border-radius:99px;padding:2px 10px;font-size:13px}
 .ov-more,.ov-empty{color:var(--muted);font-weight:700;text-shadow:0 2px 6px #000}
 .ov-stage.solo .ov-item{font-size:28px}.ov-stage.solo .ov-item.first{font-size:34px}.ov-stage.solo .ov-title{font-size:22px}
-.boom{position:absolute;inset:0;pointer-events:none;display:flex;align-items:center;justify-content:center}
-.boom-core{font-size:120px;animation:boomcore 1s ease-out forwards}
-.boom .p{position:absolute;left:50%;top:50%;font-size:28px;animation:boomp 1.4s ease-out forwards}
-@keyframes boomcore{0%{transform:scale(.2);opacity:1}60%{transform:scale(1.6);opacity:1}100%{transform:scale(2.2);opacity:0}}
-@keyframes boomp{0%{transform:translate(-50%,-50%) scale(.4);opacity:1}100%{transform:translate(calc(-50% + var(--x)),calc(-50% + var(--y))) scale(1.2);opacity:0}}
 @media (max-width:720px){.ovgrid{grid-template-columns:minmax(0,1fr)}.toolbar{position:static}.toolbar #tbSong{max-width:100%;width:100%}.sw{width:30px;height:30px}.tbb{padding:8px 11px}.slrow{flex-wrap:wrap}.slrow .c{width:100%}}
 .chip{display:inline-block;background:#222;border:1px solid #444;border-radius:99px;padding:4px 10px;font-size:12px;margin:2px 4px 2px 0}
 .setlist-row{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:8px;cursor:pointer}
@@ -159,6 +160,7 @@ hr{border:0;border-top:1px solid var(--line);margin:18px 0}
 </style>
 <link rel="icon" href="data:,">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script src="/overlay-fx.js"></script>
 </head>
 <body>
 <header>
@@ -1161,25 +1163,24 @@ async function renderMod(){
 
 const OVERLAY_URL = 'https://killer-keys-tip-app.onrender.com/?view=overlay';
 let overlaySeenExplode = null, overlaySeenIds = null, overlaySeq = 0;
+let overlayColors = { song:'#f5b942', custom:'#39c2d7', shoutout:'#ff6fa5' };
+const KIND_LABEL = { song:'Request', custom:'Custom request', shoutout:'Shout-out' };
 function overlayMarkup(d){
   const q = d.queue || [];
   if(!q.length) return '<div class="ov-empty">No requests in the queue yet</div>';
-  return `<div class="ov-title">&#127929; REQUESTS</div>` + q.map((it,i) => `
-    <div class="ov-item${i===0?' first':''}"><span class="ov-n">${i===0?'&#9654;':i+1}</span>
-      <span class="ov-song">${esc(it.songTitle)}${it.artist?`<span class="ov-artist"> — ${esc(it.artist)}</span>`:''}</span>
-      ${it.tipCents?`<span class="ov-tip">$${(it.tipCents/100).toFixed(0)}</span>`:''}</div>`).join('') +
+  return `<div class="ov-title">&#127929; REQUESTS</div>` + q.map((it,i) => {
+    const k = it.kind || 'song', c = overlayColors[k] || overlayColors.song;
+    const main = k === 'shoutout' ? (it.message || 'Shout-out') : it.songTitle;
+    return `<div class="ov-item${i===0?' first':''} k-${k}" style="--kc:${c}"><span class="ov-n">${i===0?'&#9654;':i+1}</span>
+      <span class="ov-song">${k !== 'song' ? `<span class="ov-kind">${KIND_LABEL[k]}</span>` : ''}${esc(main)}${k==='song' && it.artist?`<span class="ov-artist"> — ${esc(it.artist)}</span>`:''}${it.requester?`<span class="ov-who"> · ${esc(it.requester)}</span>`:''}</span>
+      ${it.tipCents?`<span class="ov-tip">$${(it.tipCents/100).toFixed(0)}</span>`:''}</div>`; }).join('') +
     (d.total > q.length ? `<div class="ov-more">+${d.total - q.length} more</div>` : '');
 }
-function explode(stage){
-  if(!stage) return;
-  const layer = document.createElement('div'); layer.className = 'boom';
-  const em = ['&#128165;','&#10024;','&#127929;','&#128176;','&#11088;','&#127881;'];
-  layer.innerHTML = '<div class="boom-core">&#128165;</div>' + Array.from({length: 36}, (_, i) => {
-    const a = (i / 36) * Math.PI * 2, r = 120 + Math.random() * 220;
-    return `<span class="p" style="--x:${Math.cos(a)*r}px;--y:${Math.sin(a)*r}px;animation-delay:${Math.random()*0.12}s">${em[i % em.length]}</span>`;
-  }).join('');
-  stage.appendChild(layer);
-  setTimeout(() => layer.remove(), 1900);
+function celebrateItem(stage, it, test){
+  if(!stage || !window.KKOverlayFX) return;
+  const k = it.kind || 'song';
+  KKOverlayFX.celebrate(stage, { title: k === 'shoutout' ? 'Shout-out' : k === 'custom' ? String(it.songTitle||'').replace(/^Custom:\s*/,'') : it.songTitle || it.title,
+    artist: k === 'song' ? it.artist : '', requester: it.requester, tipCents: it.tipCents, kind: k, test: !!test, color: overlayColors[k] || overlayColors.song });
 }
 async function fillOverlay(){
   const body = $('#ovBody'); if(!body) return;
@@ -1187,12 +1188,13 @@ async function fillOverlay(){
   try{
     const d = await api('/api/overlay');
     if(seq !== overlaySeq) return; // a newer refresh already started; drop this stale answer
+    if(d.colors) overlayColors = Object.assign(overlayColors, d.colors);
     body.innerHTML = overlayMarkup(d);
     const stage = $('#ovStage');
-    if(overlaySeenExplode !== null && d.explodeAt > overlaySeenExplode) explode(stage);
-    const tipped = (d.queue || []).filter(x => x.tipCents > 0).map(x => x.id);
-    if(overlaySeenIds && tipped.some(id => !overlaySeenIds.has(id))) explode(stage);
-    overlaySeenExplode = d.explodeAt; overlaySeenIds = new Set(tipped);
+    if(overlaySeenExplode !== null && d.explodeAt > overlaySeenExplode && d.test) celebrateItem(stage, Object.assign({ songTitle: d.test.title }, d.test), true);
+    const recent = d.recent || [];
+    if(overlaySeenIds) recent.filter(x => !overlaySeenIds.has(x.id)).reverse().forEach(x => celebrateItem(stage, x));
+    overlaySeenExplode = d.explodeAt; overlaySeenIds = new Set(recent.map(x => x.id).concat(overlaySeenIds ? [...overlaySeenIds].slice(0, 200) : []));
   }catch(e){ body.innerHTML = '<div class="ov-empty">Could not load the queue (' + esc(e.message) + ')</div>'; }
 }
 async function renderOverlay(){
@@ -1210,12 +1212,19 @@ async function renderOverlay(){
       <div>
         <h2 style="font-size:18px;margin:0 0 8px">Live preview</h2>
         <div class="ov-stage" id="ovStage"><div id="ovBody"><div class="ov-empty">Loading queue…</div></div></div>
-        <p class="small">Updates every 3 seconds. Tipped requests go to the top and set off the explosion.</p>
+        <p class="small">Updates every 3 seconds. Every new request sets off a celebration — bigger for bigger tips.</p>
       </div>
       <div class="panel">
         <label for="ovVisible">Visible requests: <b id="ovVisibleV">${esc(st.overlayVisible||3)}</b></label>
         <input type="range" id="ovVisible" min="1" max="10" value="${esc(st.overlayVisible||3)}" style="width:100%">
-        <div class="btnrow"><button class="btn" id="ovExplode">&#128165; Test explosion</button></div>
+        <h2 style="font-size:16px;margin:14px 0 6px">&#128165; Test explosion</h2>
+        <div class="fxbtns"><button class="btn ghost" data-fx="0">Free</button><button class="btn ghost" data-fx="1000">$10</button><button class="btn" data-fx="5000">$50</button></div>
+        <h2 style="font-size:16px;margin:16px 0 0">Colours</h2>
+        <div class="ovcolors">
+          <label>Requests<input type="color" id="ovcSong" value="${esc(st.ovColorSong||'#f5b942')}"></label>
+          <label>Custom<input type="color" id="ovcCustom" value="${esc(st.ovColorCustom||'#39c2d7')}"></label>
+          <label>Shout-outs<input type="color" id="ovcShout" value="${esc(st.ovColorShout||'#ff6fa5')}"></label>
+        </div>
         <hr>
         <h2 style="font-size:18px">Browser source for Ecamm / OBS</h2>
         <label for="ovPublic">Public address</label>
@@ -1229,10 +1238,20 @@ async function renderOverlay(){
       $('#ovVisibleV').textContent = e.target.value; clearTimeout(tVis); overlaySeq++;
       tVis = setTimeout(async () => { await api('/api/settings', {method:'PUT', body: JSON.stringify({overlayVisible: Number(e.target.value)})}); fillOverlay(); toast('Showing ' + e.target.value + ' requests on the overlay'); }, 350);
     });
-    $('#ovExplode').addEventListener('click', async () => {
-      explode($('#ovStage'));
-      try{ const r = await api('/api/overlay/explode', {method:'POST'}); overlaySeenExplode = r.explodeAt; toast('Explosion sent to the stream overlay'); }
+    main.querySelectorAll('[data-fx]').forEach(b => b.addEventListener('click', async () => {
+      const tipCents = Number(b.dataset.fx);
+      const test = { tipCents, title:'Piano Man', artist:'Billy Joel', requester:'Test fan', kind:'song' };
+      celebrateItem($('#ovStage'), Object.assign({ songTitle: test.title }, test), true);
+      try{ const r = await api('/api/overlay/explode', {method:'POST', body: JSON.stringify(test)}); overlaySeenExplode = r.explodeAt; toast((tipCents ? '$' + tipCents/100 : 'Free') + ' test explosion sent to the stream overlay'); }
       catch(e){ toast('Preview only — could not reach the stream overlay: ' + e.message, true); }
+    }));
+    [['ovcSong','ovColorSong','song'],['ovcCustom','ovColorCustom','custom'],['ovcShout','ovColorShout','shoutout']].forEach(([id,key,k]) => {
+      const el = $('#'+id);
+      el.addEventListener('input', () => { overlayColors[k] = el.value; fillOverlay(); });
+      el.addEventListener('change', async () => {
+        try{ await api('/api/settings', {method:'PUT', body: JSON.stringify({[key]: el.value})}); toast('Colour saved'); fillOverlay(); }
+        catch(e){ toast('Colour not saved: ' + e.message, true); }
+      });
     });
     $('#ovSave').addEventListener('click', async () => {
       try{ const r = await api('/api/settings', {method:'PUT', body: JSON.stringify({overlayPublicUrl: $('#ovPublic').value})}); $('#ovPublic').value = r.settings.overlayPublicUrl; toast('Public address saved'); }
@@ -1259,7 +1278,8 @@ async function loadSongs(){
 /* ---------- Tips page: one global request price ---------- */
 async function renderTips(){
   let cur = 0;
-  try{ const d = await api('/api/settings'); cur = Number((d.settings||d).globalMinCents) || 0; }catch(e){}
+  let soc = {};
+  try{ const d = await api('/api/settings'); soc = d.settings || {}; cur = Number(soc.globalMinCents) || 0; }catch(e){}
   setPriceBadge(cur);
   const own = songs.filter(s => Number(s.minTipCents) > 0).sort((a,b) => b.minTipCents - a.minTipCents || a.title.localeCompare(b.title));
   const m = c => '$' + (c % 100 ? (c/100).toFixed(2) : String(c/100));
@@ -1279,6 +1299,14 @@ async function renderTips(){
       <button class="btn" id="tipCustomSave">Save custom price</button>
     </div>
     <div class="tipnow" id="tipNow"></div>
+  </div>
+  <h2 style="font-size:20px;margin:22px 0 4px">Fan page links</h2>
+  <div class="panel">
+    <label for="socYt">YouTube channel <span class="small">(button hidden while empty)</span></label>
+    <input type="text" id="socYt" placeholder="https://www.youtube.com/@…" value="${esc(soc.socialYoutube||'')}">
+    <label for="socIg" style="margin-top:10px;display:block">Instagram</label>
+    <input type="text" id="socIg" placeholder="https://www.instagram.com/…" value="${esc(soc.socialInstagram||'')}">
+    <div class="btnrow"><button class="btn" id="socSave">Save links</button></div>
   </div>
   <h2 style="font-size:20px;margin:22px 0 4px">Songs with their own minimum (${own.length})</h2>
   <p class="small" style="margin:0 0 8px">These keep their price no matter what's set above. Change one by editing that song.</p>
@@ -1310,6 +1338,10 @@ async function renderTips(){
     save(v);
   };
   $('#tipCustomSave').addEventListener('click', saveCustom);
+  $('#socSave').addEventListener('click', async () => {
+    try{ await api('/api/settings', {method:'PUT', body: JSON.stringify({socialYoutube: $('#socYt').value.trim(), socialInstagram: $('#socIg').value.trim()})}); toast('Fan page links saved'); pingFan(); }
+    catch(e){ toast('Links not saved: ' + e.message, true); }
+  });
   $('#tipCustomAmt').addEventListener('keydown', e => { if(e.key === 'Enter') saveCustom(); });
   main.querySelectorAll('[data-opensong]').forEach(el => el.addEventListener('click', () => openSong(Number(el.dataset.opensong))));
 }
