@@ -13,6 +13,10 @@ header{padding:14px 20px 0;display:flex;align-items:center;gap:10px;flex-wrap:wr
 .logo{font-weight:800;letter-spacing:.04em;font-size:22px;white-space:nowrap}
 .logo b{color:var(--gold)}
 .sub{color:var(--muted);font-size:12px;letter-spacing:.14em;text-transform:uppercase}
+.viewas{margin-left:auto;display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px;letter-spacing:.1em}
+.viewas button{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:99px;padding:7px 16px;font-weight:700;cursor:pointer}
+.viewas button.on{background:var(--green);border-color:var(--green);color:#000}
+body.fan .perf{display:none!important}
 .badge{background:var(--gold);color:#000;font-weight:800;font-size:11px;padding:3px 10px;border-radius:99px;letter-spacing:.06em}
 nav{display:flex;gap:8px;flex-wrap:wrap;padding:14px 20px;border-bottom:1px solid var(--line)}
 nav button{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:99px;padding:9px 16px;font-weight:700;cursor:pointer;font-size:14px}
@@ -52,20 +56,82 @@ textarea{min-height:120px;font-family:ui-monospace,Menlo,Consolas,monospace}
 .btn.ghost{background:var(--panel);color:var(--text);border:1px solid var(--line)}
 .btn.danger{background:var(--red);color:#fff}
 .btnrow{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
-.chartbox{background:#fff;color:#000;border-radius:10px;padding:16px;overflow:auto;max-height:60vh}
-.chartbox *{max-width:100%}
+.chartbox{background:#0b0b0b;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:16px;overflow-x:auto;font-family:ui-monospace,Menlo,Consolas,"Courier New",monospace;line-height:1.45}
+.chartbox div,.chartbox p,.chartbox pre{white-space:pre;margin:0;background:transparent}
+.chartbox .ch{color:var(--gold);font-weight:800}
+.chartbox .sec{color:#21cbff;font-weight:800}
+.chartbox .song-head{font-size:1.25em;font-weight:900;color:var(--text)}
+.chartbox .song-sub{color:var(--muted)}
+.chartbox.plain{white-space:pre}
+.chartbox:empty::before{content:attr(data-empty);color:var(--muted);font-family:inherit}
+.chartbox.editing{outline:2px dashed var(--gold);outline-offset:3px;cursor:text}
+.charthead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.lockstat{font-size:13px;font-weight:800;color:var(--green);margin-left:auto}
+.lockstat.dirty{color:var(--gold)}
+.small-btn{padding:7px 14px;font-size:13px}
+.toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:10px;position:sticky;top:0;z-index:5}
+.toolbar select{width:auto;max-width:260px;padding:8px 10px;font-size:14px}
+.toolbar .tbl{display:flex;align-items:center;gap:6px;margin:0;font-size:12px;color:var(--muted);font-weight:700}
+.toolbar input[type=range]{width:90px;accent-color:var(--gold)}
+.toolbar .tbl span{min-width:18px;color:var(--text)}
+.tbb{background:#0d0d0d;border:1px solid var(--line);color:var(--text);border-radius:8px;padding:7px 10px;font-weight:700;cursor:pointer;font-size:13px}
+.tbb:hover{border-color:var(--gold)}
+.swatches{display:flex;gap:5px}
+.sw{width:24px;height:24px;border-radius:6px;border:2px solid #333;cursor:pointer;padding:0}
+.toolbar.locked .edit-only{opacity:.35}
+.slcard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+.slhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.viewers{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.tog{min-width:52px;border:1px solid var(--line);background:#2a2a2a;color:var(--muted);border-radius:99px;padding:6px 10px;font-weight:900;font-size:12px;cursor:pointer}
+.tog.on{background:var(--green);border-color:var(--green);color:#000}
+.btn.sm{padding:7px 14px;font-size:13px}
+.iconbtn{background:none;border:0;font-size:20px;cursor:pointer;padding:2px 4px}
+.iconbtn.dim{opacity:.25;cursor:default}
+.slrow .c{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.slrow.is-off .n,.slrow.is-off .small{opacity:.4;text-decoration:line-through}
+.ovgrid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:18px;align-items:start}
+.ovgrid>*{min-width:0}
+#ovVisible{accent-color:var(--gold)}
+.ov-stage{position:relative;aspect-ratio:16/9;border-radius:12px;border:1px solid var(--line);overflow:hidden;background:repeating-conic-gradient(#151515 0 25%,#1d1d1d 0 50%) 0 0/24px 24px;padding:16px}
+.ov-stage.solo{aspect-ratio:auto;height:100vh;border:0;border-radius:0;background:transparent;padding:30px}
+body.ov-solo{background:transparent}
+body.ov-solo header,body.ov-solo nav{display:none}
+body.ov-solo main{max-width:none;padding:0}
+.ov-title{font-weight:900;letter-spacing:.2em;color:var(--gold);font-size:14px;margin-bottom:8px;text-shadow:0 2px 6px #000}
+.ov-item{display:flex;align-items:center;gap:10px;background:rgba(0,0,0,.72);border:1px solid rgba(245,185,66,.4);border-radius:10px;padding:8px 12px;margin-bottom:6px;font-weight:800;font-size:16px}
+.ov-item.first{border-color:var(--gold);font-size:19px}
+.ov-n{color:var(--gold);min-width:20px}
+.ov-song{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ov-artist{color:var(--muted);font-weight:600}
+.ov-tip{background:var(--green);color:#000;border-radius:99px;padding:2px 10px;font-size:13px}
+.ov-more,.ov-empty{color:var(--muted);font-weight:700;text-shadow:0 2px 6px #000}
+.ov-stage.solo .ov-item{font-size:28px}.ov-stage.solo .ov-item.first{font-size:34px}.ov-stage.solo .ov-title{font-size:22px}
+.boom{position:absolute;inset:0;pointer-events:none;display:flex;align-items:center;justify-content:center}
+.boom-core{font-size:120px;animation:boomcore 1s ease-out forwards}
+.boom .p{position:absolute;left:50%;top:50%;font-size:28px;animation:boomp 1.4s ease-out forwards}
+@keyframes boomcore{0%{transform:scale(.2);opacity:1}60%{transform:scale(1.6);opacity:1}100%{transform:scale(2.2);opacity:0}}
+@keyframes boomp{0%{transform:translate(-50%,-50%) scale(.4);opacity:1}100%{transform:translate(calc(-50% + var(--x)),calc(-50% + var(--y))) scale(1.2);opacity:0}}
+@media (max-width:720px){.ovgrid{grid-template-columns:minmax(0,1fr)}.toolbar{position:static}.toolbar select{max-width:100%;width:100%}.slrow{flex-wrap:wrap}.slrow .c{width:100%}}
 .chip{display:inline-block;background:#222;border:1px solid #444;border-radius:99px;padding:4px 10px;font-size:12px;margin:2px 4px 2px 0}
 .setlist-row{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:8px;cursor:pointer}
 .setlist-row:hover{border-color:var(--gold)}
 .setlist-row .n{font-weight:800}
 .setlist-row .c{color:var(--muted);font-size:13px;margin-left:auto}
-.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--gold);color:#000;font-weight:800;padding:10px 20px;border-radius:99px;display:none;z-index:50}
+.toast{pointer-events:none;position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--gold);color:#000;font-weight:800;padding:10px 20px;border-radius:14px;display:none;z-index:50;max-width:min(92vw,560px);text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.6)}
+.toast.err{background:var(--red);color:#fff}
+button:active{transform:scale(.97)}
+.song .min,.mintip{background:#1d1500;border:1px solid var(--gold-dim);color:var(--gold);border-radius:99px;padding:5px 10px;font-weight:800;font-size:12px;cursor:pointer;white-space:nowrap}
+.mintip{font-size:14px;padding:6px 12px;margin-left:6px}
+.song .min:hover,.mintip:hover{background:var(--gold);color:#000}
+.notice{background:#1a1300;border:1px solid var(--gold-dim);border-radius:12px;padding:12px 14px;margin:0 0 12px;color:var(--text);font-size:14px;line-height:1.5}
+.ovurl{font-family:ui-monospace,Menlo,monospace;background:#0d0d0d;border:1px solid var(--line);border-radius:8px;padding:10px;word-break:break-all;user-select:all}
 .small{color:var(--muted);font-size:13px}
 .syncrow{display:flex;justify-content:flex-end;align-items:center;gap:10px;color:var(--muted);font-size:13px;margin-bottom:2px}
 .btn.sync{background:var(--green);color:#000;padding:8px 16px;font-size:13px}
 hr{border:0;border-top:1px solid var(--line);margin:18px 0}
-@media (max-width:640px){h1{font-size:32px}.logo{font-size:18px}}
+@media (max-width:640px){h1{font-size:32px}.logo{font-size:18px}.viewas{margin-left:0;width:100%}}
 </style>
+<link rel="icon" href="data:,">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 </head>
 <body>
@@ -100,7 +166,7 @@ let notes = '';
 let view = 'board';
 let filterTag = 'Favorites';
 let searchQ = '';
-let performerMode = false;
+let performerMode = true;
 let currentSong = null;
 let currentSetlist = null;
 let makerSetlist = null;
@@ -108,7 +174,61 @@ let overlayTimer = null;
 let lastSync = null;
 
 const TAGS = ['Favorites','All','60s','70s','80s','90s','2000s','2010s','2020s','Country','Medleys','Bangers','Most requested','Elton John','Billy Joel'];
-function toast(msg){ toastEl.textContent = msg; toastEl.style.display='block'; setTimeout(()=>toastEl.style.display='none', 2200); }
+// ---- Embed-aware viewport helpers ----
+// Inside the Wix page the app runs in a tall iframe (1200-1700 px) inside a
+// shorter browser window. Anything positioned against the iframe's own
+// viewport (bottom toasts, content rendered below the fold, scrollTo(0,0))
+// lands outside what the visitor can actually see, which made every button
+// look dead. We track the visible slice of the iframe with an
+// IntersectionObserver and use it for toasts and for bringing new content
+// into view.
+const EMBEDDED = (function(){ try{ return window.self !== window.top; }catch(e){ return true; } })();
+let visTop = 0, visBottom = window.innerHeight;
+(function trackVisible(){
+  if(!('IntersectionObserver' in window)) return;
+  const probe = document.createElement('div');
+  probe.setAttribute('aria-hidden','true');
+  probe.style.cssText = 'position:fixed;left:0;top:0;width:2px;height:100%;opacity:0;pointer-events:none;z-index:-1';
+  document.body.appendChild(probe);
+  const th = []; for(let i=0;i<=200;i++) th.push(i/200);
+  new IntersectionObserver(entries => {
+    const e = entries[entries.length-1];
+    if(e.isIntersecting && e.intersectionRect.height > 0){ visTop = e.intersectionRect.top; visBottom = e.intersectionRect.bottom; }
+    else { visTop = 0; visBottom = window.innerHeight; }
+    placeToast();
+  }, {threshold: th}).observe(probe);
+})();
+function placeToast(){
+  if(toastEl.style.display !== 'block') return;
+  const h = toastEl.offsetHeight || 44;
+  toastEl.style.bottom = 'auto';
+  toastEl.style.top = Math.max(visTop + 8, visBottom - h - 20) + 'px';
+}
+let toastTimer = null;
+function toast(msg, isErr){
+  toastEl.textContent = msg;
+  toastEl.classList.toggle('err', !!isErr);
+  toastEl.style.display = 'block';
+  placeToast();
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>toastEl.style.display='none', isErr ? 4500 : 2600);
+}
+// Scroll so that el sits at the top of the part of the app the visitor can see.
+function bringIntoView(el){
+  if(!el) return;
+  try{ el.scrollIntoView({block:'start'}); }catch(e){}
+  requestAnimationFrame(() => {
+    const r = el.getBoundingClientRect();
+    if(r.top >= visTop - 2 && r.top <= visBottom - 60) return;
+    const want = window.scrollY + r.top - visTop - 10;
+    const need = want + window.innerHeight - document.documentElement.scrollHeight;
+    if(need > 0) main.style.paddingBottom = (80 + need) + 'px';
+    window.scrollTo(0, Math.max(0, want));
+  });
+}
+function freshView(){ main.style.paddingBottom = ''; window.scrollTo(0,0); bringIntoView(document.querySelector('header')); }
+window.addEventListener('unhandledrejection', e => { const m = (e.reason && e.reason.message) || String(e.reason || 'unknown error'); toast('That did not go through: ' + m, true); });
+window.addEventListener('error', e => { if(e && e.message) toast('Something broke: ' + e.message, true); });
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 async function api(path, opts){
   const ctrl = new AbortController();
@@ -128,7 +248,8 @@ function visibleSongs(){
   if(filterTag === 'Favorites') list = list.filter(s => s.favorite);
   else if(filterTag === 'Elton John') list = list.filter(s => (s.artist||'').toLowerCase().includes('elton john'));
   else if(filterTag === 'Billy Joel') list = list.filter(s => (s.artist||'').toLowerCase().includes('billy joel'));
-  else if(filterTag !== 'All' && filterTag !== 'Most requested') list = list.filter(s => (s.tags||[]).includes(filterTag));
+  else if(filterTag === 'Most requested') list = list.filter(s => (s.requestCount||0) > 0).sort((a,b) => (b.requestCount||0) - (a.requestCount||0));
+  else if(filterTag !== 'All'){ const ft = filterTag.toLowerCase(); list = list.filter(s => (s.tags||[]).some(t => String(t).toLowerCase() === ft)); }
   if(searchQ){
     const q = searchQ.toLowerCase();
     list = list.filter(s => s.title.toLowerCase().includes(q) || (s.artist||'').toLowerCase().includes(q));
@@ -138,31 +259,126 @@ function visibleSongs(){
 
 function renderBoard(){
   const list = visibleSongs();
-  const boardCount = songs.filter(s=>s.visible).length;
   main.innerHTML = `
     <div class="syncrow"><span id="syncStamp">Last synced ${fmtSync(lastSync)}</span><button class="btn sync" id="syncBtn">Sync now</button></div>
     <h1>REQUEST A <span>$ONG</span></h1>
-    <p class="lede">Requests are free but requests with tips get played first! Tips start at $5. A few signature numbers carry their own minimum, shown on the song. <b>${boardCount} songs on the board tonight.</b> The board opens on the band's <b>&#9733; Favorites</b> — tap <b>All</b> or any era to browse everything.</p>
     <div class="search"><input id="q" type="text" placeholder="Search songs or artists..." value="${esc(searchQ)}"><button id="dictBtn" title="Dictation">&#127908; Dictate</button></div>
+    <div id="dictMsg"></div>
     <div class="filters">${TAGS.map(t=>`<button data-tag="${t}" class="${filterTag===t?'on':''}">${t==='Favorites'?'&#9733; ':''}${t}</button>`).join('')}</div>
-    <div id="list">${list.length ? list.map(songRow).join('') : '<div class="empty">No songs match. Try another search or filter.</div>'}</div>`;
+    <div id="list">${list.length ? list.map(songRow).join('') : (filterTag==='Most requested' && !searchQ ? '<div class="empty">No requests yet tonight — songs show up here once fans request them.</div>' : '<div class="empty">No songs match. Try another search or filter.</div>')}</div>`;
   $('#q').addEventListener('input', e => { searchQ = e.target.value; renderListOnly(); });
   $('#q').addEventListener('keydown', e => { if(e.key==='Enter') e.target.blur(); });
   document.querySelectorAll('.filters button').forEach(b => b.addEventListener('click', () => { filterTag = b.dataset.tag; renderBoard(); }));
-  document.querySelectorAll('.song').forEach(el => el.addEventListener('click', () => openSong(Number(el.dataset.id))));
+  wireSongRows(document);
   const d = $('#dictBtn');
-  if(d) d.addEventListener('click', () => toast('Dictation: tap the mic on your keyboard to dictate a search.'));
+  if(d) d.addEventListener('click', startDictation);
   $('#syncBtn').addEventListener('click', syncNow);
 }
 function renderListOnly(){
   const list = visibleSongs();
   const el = $('#list'); if(!el) return;
   el.innerHTML = list.length ? list.map(songRow).join('') : '<div class="empty">No songs match. Try another search or filter.</div>';
-  el.querySelectorAll('.song').forEach(n => n.addEventListener('click', () => openSong(Number(n.dataset.id))));
+  wireSongRows(el);
 }
+function wireSongRows(root){
+  root.querySelectorAll('.song').forEach(n => n.addEventListener('click', () => openSong(Number(n.dataset.id))));
+  root.querySelectorAll('.song [data-min]').forEach(b => b.addEventListener('click', ev => {
+    ev.stopPropagation(); ev.preventDefault();
+    openSong(Number(b.dataset.min), {editMin: true});
+  }));
+}
+
+// ---- Dictation (Web Speech API) ----
+let recog = null;
+function dictMessage(html){ const m = $('#dictMsg'); if(m){ m.innerHTML = html ? '<div class="notice">'+html+'</div>' : ''; } }
+function dictFallback(reason){
+  const q = $('#q'); if(q) q.focus();
+  const mac = /Mac/.test(navigator.platform) && !/iPhone|iPad/.test(navigator.userAgent);
+  const kb = mac ? 'press the <b>Fn</b> (or Globe) key twice' : 'tap the <b>&#127908; mic on your keyboard</b>';
+  dictMessage(reason + ' The search box is ready: ' + kb + ' to dictate into it.');
+}
+function startDictation(){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let micAllowed = true;
+  try{
+    const pol = document.permissionsPolicy || document.featurePolicy;
+    if(pol && pol.allowsFeature) micAllowed = pol.allowsFeature('microphone');
+  }catch(e){}
+  if(!SR){ dictFallback('Voice search is not supported in this browser.'); return; }
+  if(!micAllowed){ dictFallback('The microphone is blocked inside this website frame.'); return; }
+  if(recog){ try{ recog.stop(); }catch(e){} recog = null; dictMessage(''); return; }
+  const r = new SR();
+  recog = r;
+  r.lang = 'en-US'; r.interimResults = true; r.maxAlternatives = 1;
+  const btn = $('#dictBtn');
+  if(btn) btn.innerHTML = '&#9209; Stop';
+  dictMessage('Listening… say a song or artist.');
+  r.onresult = ev => {
+    let t = ''; for(const res of ev.results) t += res[0].transcript;
+    searchQ = t.trim(); const q = $('#q'); if(q) q.value = searchQ; renderListOnly();
+  };
+  r.onerror = ev => {
+    recog = null;
+    if(ev.error === 'not-allowed' || ev.error === 'service-not-allowed') dictFallback('The microphone was blocked (by the browser or the website frame).');
+    else if(ev.error === 'no-speech') dictMessage('Did not catch that — tap Dictate and try again.');
+    else dictFallback('Voice search failed (' + esc(ev.error) + ').');
+  };
+  r.onend = () => { recog = null; const b = $('#dictBtn'); if(b) b.innerHTML = '&#127908; Dictate'; const m = $('#dictMsg'); if(m && /Listening/.test(m.textContent)) dictMessage(''); };
+  try{ r.start(); }catch(e){ recog = null; dictFallback('Voice search could not start.'); }
+}
+// ---- catalogue matching (setlist titles vs catalogue titles differ in
+// punctuation, curly quotes, parentheses, case and spacing) ----
+function normTitle(t){
+  return String(t||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase()
+    .replace(/[\u2018\u2019\u201B`´]/g,"'").replace(/&/g,' and ')
+    .replace(/[^a-z0-9 ]+/g,' ').replace(/\s+/g,' ').trim();
+}
+function bareTitle(t){ return normTitle(String(t||'').replace(/\([^)]*\)/g,' ').replace(/\[[^\]]*\]/g,' ')); }
+function findCatalogSong(title, artist){
+  const nt = normTitle(title), bt = bareTitle(title), na = normTitle(artist);
+  const sameArtist = s => na && normTitle(s.artist) && (normTitle(s.artist).includes(na) || na.includes(normTitle(s.artist)));
+  const pick = list => list.length ? (list.find(sameArtist) || list.find(s => s.visible) || list[0]) : null;
+  const exact = songs.filter(s => s.title.toLowerCase() === String(title||'').toLowerCase());
+  if(exact.length) return pick(exact);
+  let hit = pick(songs.filter(s => normTitle(s.title) === nt)); if(hit) return hit;
+  hit = pick(songs.filter(s => normTitle(s.title) === bt || bareTitle(s.title) === nt || bareTitle(s.title) === bt)); if(hit) return hit;
+  // squashed compare ("rock n roll" vs "rock 'n' roll")
+  const sq = x => x.replace(/ /g,'');
+  hit = pick(songs.filter(s => sq(normTitle(s.title)) === sq(nt) || sq(bareTitle(s.title)) === sq(bt))); if(hit) return hit;
+  if(na && bt.length >= 6) hit = songs.find(s => sameArtist(s) && (normTitle(s.title).includes(bt) || bt.includes(bareTitle(s.title)) && bareTitle(s.title).length >= 6));
+  return hit || null;
+}
+
+// ---- chord chart on a dark background ----
+// Charts were authored for a dark stage display: neon chord colours plus some
+// spans forced to black (#000). On the dark box black text would vanish, so
+// lift any too-dark inline colour toward white, keeping its hue.
+function lum(r,g,b){ const f = c => { c/=255; return c <= .03928 ? c/12.92 : Math.pow((c+.055)/1.055, 2.4); }; return .2126*f(r)+.7152*f(g)+.0722*f(b); }
+function darkenChart(box){
+  box.querySelectorAll('[style*="color"],font[color]').forEach(el => {
+    if(el.style && el.style.backgroundColor && !el.hasAttribute('data-kkbg')){ el.setAttribute('data-kkbg', el.style.backgroundColor); el.style.backgroundColor = 'transparent'; }
+    const orig = el.style ? el.style.color : '';
+    const m = getComputedStyle(el).color.match(/\d+(\.\d+)?/g); if(!m) return;
+    let [r,g,b] = m.slice(0,3).map(Number);
+    const max = Math.max(r,g,b), min = Math.min(r,g,b);
+    if(max - min < 40 && lum(r,g,b) < .35){ if(!el.hasAttribute('data-kkc')) el.setAttribute('data-kkc', orig); el.style.color = 'var(--text)'; return; }
+    let k = 0;
+    while(lum(r,g,b) < .16 && k < 12){ r += (255-r)*.18; g += (255-g)*.18; b += (255-b)*.18; k++; }
+    if(k){ if(!el.hasAttribute('data-kkc')) el.setAttribute('data-kkc', orig); el.style.color = `rgb(${r|0},${g|0},${b|0})`; }
+  });
+}
+// Keep chord-over-lyric alignment (no wrapping): shrink the font until the
+// widest line fits, down to 11 px; past that the box scrolls sideways.
+function fitChart(box, size){
+  let fs = Number(size)||19, start = fs, guard = 0;
+  box.style.fontSize = fs + 'px';
+  while(box.scrollWidth > box.clientWidth + 1 && fs > 11 && guard++ < 30){ fs -= 1; box.style.fontSize = fs + 'px'; }
+  return fs !== start;
+}
+
 function songRow(s){
   const tags = (s.tags||[]).map(t=>`<span class="tag ${t.toLowerCase()==='bangers'?'banger':t.toLowerCase()==='country'?'country':''}">${esc(t)}</span>`).join('');
-  const min = s.minTipCents ? `<span class="min">min $${(s.minTipCents/100).toFixed(0)}</span>` : '';
+  const min = !s.minTipCents ? '' : `<button class="min" data-min="${s.id}" title="Change minimum tip">min $${(s.minTipCents/100).toFixed(0)} &#9998;</button>`;
   return `<div class="song" data-id="${s.id}">
     <div style="flex:1;min-width:0">
       <div class="tt">${esc(s.title)} ${s.favorite?'<span class="star">&#9733;</span>':''}</div>
@@ -176,35 +392,176 @@ function songRow(s){
   </div>`;
 }
 
-async function openSong(id){
+async function openSong(id, opts){
+  opts = opts || {};
+  stopAutoScroll();
   try{
     const { song } = await api('/api/songs/'+id);
     currentSong = song;
-    const tags = (song.tags||[]).join(', ');
+    const isHtml = /<[a-z][\s\S]*>/i.test(song.chartHtml||'');
+    const chartList = songs.filter(s => s.hasChart || s.id === song.id).sort((a,b) => a.title.localeCompare(b.title));
     main.innerHTML = `
-    <p><a href="#" id="backBtn" style="color:var(--gold);font-weight:700">&lsaquo; Back to Song Board</a></p>
+    <p><a href="#" id="backBtn" style="color:var(--gold);font-weight:700">&lsaquo; Back to ${opts.setlist ? 'setlist' : 'Song Board'}</a></p>
     <h1 style="font-size:32px">${esc(song.title)}</h1>
-    <p class="lede">${esc(song.artist||'—')} &middot; ${song.favorite?'&#9733; Favorite &middot; ':''}${song.visible?'Visible on board':'Hidden from board'}${song.minTipCents?` &middot; Min tip $${(song.minTipCents/100).toFixed(0)}`:''}</p>
+    <p class="lede">${esc(song.artist||'—')} &middot; ${song.favorite?'&#9733; Favorite &middot; ':''}${song.visible?'Visible on board':'Hidden from board'} <button class="mintip" id="minBtn" title="Change minimum tip">${song.minTipCents?`Min tip $${(song.minTipCents/100).toFixed(0)}`:'No min tip'} &#9998;</button></p>
     <div class="btnrow">
       <button class="btn" id="editBtn">Edit song &amp; chart</button>
       <button class="btn ghost" id="queueBtn">+ Add to queue</button>
       <button class="btn ghost" id="favBtn">${song.favorite?'&#9733; Unfavorite':'&#9734; Favorite'}</button>
       <button class="btn ghost" id="visBtn">${song.visible?'Hide from board':'Show on board'}</button>
     </div>
+    <div id="editArea"></div>
     <hr>
-    <h2 style="font-size:20px">Chord chart</h2>
-    ${song.chartHtml ? `<div class="chartbox">${song.chartHtml}</div>` : '<p class="small">No chart saved for this song yet. Tap Edit to paste one.</p>'}
-    ${song.chartSource ? `<p class="small">Source: <a href="${esc(song.chartSource)}" target="_blank" rel="noopener">${esc(song.chartSource)}</a></p>` : ''}
-    <div id="editArea"></div>`;
-    $('#backBtn').addEventListener('click', e => { e.preventDefault(); view='board'; renderBoard(); });
-    $('#favBtn').addEventListener('click', async () => { await api('/api/songs/'+id, {method:'PUT', body: JSON.stringify({favorite: !song.favorite})}); toast(song.favorite?'Removed from favorites':'Added to favorites'); openSong(id); loadSongs(); });
-    $('#visBtn').addEventListener('click', async () => { await api('/api/songs/'+id, {method:'PUT', body: JSON.stringify({visible: !song.visible})}); toast(song.visible?'Hidden from board':'Shown on board'); openSong(id); loadSongs(); });
-    $('#queueBtn').addEventListener('click', async () => { await api('/api/queue', {method:'POST', body: JSON.stringify({songId: id, songTitle: song.title})}); toast('Added to queue'); });
-    $('#editBtn').addEventListener('click', () => renderSongEditor(song));
-  }catch(e){ toast('Could not open song: '+e.message); }
+    <div class="charthead"><h2 style="font-size:20px;margin:0">Chord chart</h2>
+      <span class="lockstat" id="lockStat">&#128274; Saved, locked in</span>
+      <button class="btn ghost small-btn" id="lockBtn">&#128275; Unlock to edit</button></div>
+    <div class="toolbar" id="toolbar">
+      <select id="tbSong" title="Jump to another song's chart">${chartList.map(s => `<option value="${s.id}" ${s.id===song.id?'selected':''}>${esc(s.title)}${s.artist?' — '+esc(s.artist):''}</option>`).join('')}</select>
+      <span class="swatches edit-only">${SWATCHES.map(c => `<button class="sw" data-color="${c}" title="Colour selection ${c}" style="background:${c}"></button>`).join('')}</span>
+      <label class="tbl">Size <input type="range" id="tbSize" min="10" max="34" value="${song.chartSize||19}"><span id="tbSizeV">${song.chartSize||19}</span></label>
+      <button class="tbb edit-only" id="tbAll">Select all</button>
+      <label class="tbl">Spacing <input type="range" id="tbSpacing" min="0" max="40" value="${song.chartSpacing||19}"><span id="tbSpacingV">${song.chartSpacing||19}</span></label>
+      <button class="tbb edit-only" id="tbBold"><b>B</b> Bold selection</button>
+      <button class="tbb" id="tbScroll">&#9654; Start</button>
+      <label class="tbl">Speed <input type="range" id="tbSpeed" min="1" max="10" value="${autoSpeed}"><span id="tbSpeedV">${autoSpeed}</span></label>
+    </div>
+    <div class="chartbox${isHtml||!song.chartHtml?'':' plain'}" id="chartBox" data-empty="No chart saved yet. Tap Unlock to edit, then paste or type it here.">${song.chartHtml ? (isHtml ? song.chartHtml : esc(song.chartHtml)) : ''}</div>
+    ${song.chartSource ? `<p class="small">Source: <a href="${esc(song.chartSource)}" target="_blank" rel="noopener">${esc(song.chartSource)}</a></p>` : ''}`;
+    view = 'song';
+    document.querySelectorAll('#topnav button').forEach(b => b.classList.remove('on'));
+    const cb = $('#chartBox');
+    darkenChart(cb);
+    applyChartType(cb, song.chartSize||19, song.chartSpacing||19);
+    if(fitChart(cb, song.chartSize||19)){ $('#tbSize').value = parseInt(cb.style.fontSize); $('#tbSizeV').textContent = parseInt(cb.style.fontSize); applyChartType(cb, parseInt(cb.style.fontSize), Number($('#tbSpacing').value)); }
+    setChartLocked(true);
+    wireChartToolbar(song, opts);
+
+    $('#backBtn').addEventListener('click', async e => {
+      e.preventDefault(); stopAutoScroll();
+      if(opts.setlist){
+        view = 'setlists'; makerSetlist = null; main.style.paddingBottom = '';
+        openSetlists.add(opts.setlist);
+        document.querySelectorAll('#topnav button').forEach(b => b.classList.toggle('on', b.dataset.view === 'setlists'));
+        await renderSetlists();
+        const row = main.querySelector('[data-row="'+opts.setlist+'-'+opts.idx+'"]');
+        bringIntoView(row || main);
+      } else setView(opts.back || 'board');
+    });
+    $('#favBtn').addEventListener('click', async () => { await api('/api/songs/'+id, {method:'PUT', body: JSON.stringify({favorite: !song.favorite})}); toast(song.favorite?'Removed from favorites':'Added to favorites'); await loadSongs(); openSong(id, opts); });
+    $('#visBtn').addEventListener('click', async () => { await api('/api/songs/'+id, {method:'PUT', body: JSON.stringify({visible: !song.visible})}); toast(song.visible?'Hidden from board':'Shown on board'); await loadSongs(); openSong(id, opts); });
+    $('#queueBtn').addEventListener('click', async () => { await api('/api/queue', {method:'POST', body: JSON.stringify({songId: id, songTitle: song.title})}); toast('Added "'+song.title+'" to the queue'); });
+    $('#editBtn').addEventListener('click', () => renderSongEditor(song, 'eTitle', opts));
+    $('#minBtn').addEventListener('click', () => renderSongEditor(song, 'eMin', opts));
+    if(opts.editMin) renderSongEditor(song, 'eMin', opts);
+    else { main.style.paddingBottom = ''; window.scrollTo(0,0); bringIntoView(main); }
+  }catch(e){ toast('Could not open song: '+e.message, true); }
 }
 
-function renderSongEditor(song){
+// ---- chart toolbar (replica parity) ----
+const SWATCHES = ['#feff0a','#8bff08','#fb0007','#21cbff','#fb00ff','#f5b942','#ff8a00','#f2ede6'];
+let chartLocked = true, chartDirty = false, autoTimer = null, autoSpeed = 3, savedRange = null;
+function applyChartType(box, size, spacing){
+  box.style.fontSize = size + 'px';
+  box.style.lineHeight = (Number(size) + Number(spacing)/2) + 'px';
+}
+function setChartLocked(locked){
+  chartLocked = locked;
+  const box = $('#chartBox'); if(!box) return;
+  box.contentEditable = locked ? 'false' : 'true';
+  box.classList.toggle('editing', !locked);
+  $('#toolbar').classList.toggle('locked', locked);
+  $('#lockStat').innerHTML = locked ? '&#128274; Saved, locked in' : (chartDirty ? '&#9998; Editing — unsaved changes' : '&#9998; Unlocked — editing');
+  $('#lockStat').classList.toggle('dirty', !locked);
+  $('#lockBtn').innerHTML = locked ? '&#128275; Unlock to edit' : '&#128190; Save &amp; lock';
+}
+function cleanChartHtml(box){
+  const c = box.cloneNode(true);
+  c.querySelectorAll('[data-kkc]').forEach(el => { const v = el.getAttribute('data-kkc'); el.style.color = v; if(!v) el.style.removeProperty('color'); el.removeAttribute('data-kkc'); });
+  c.querySelectorAll('[data-kkbg]').forEach(el => { el.style.backgroundColor = el.getAttribute('data-kkbg'); el.removeAttribute('data-kkbg'); });
+  c.querySelectorAll('[style=""]').forEach(el => el.removeAttribute('style'));
+  return c.classList.contains('plain') ? c.textContent : c.innerHTML;
+}
+async function saveChart(song, extra){
+  const box = $('#chartBox');
+  const body = Object.assign({ chartSize: Number($('#tbSize').value), chartSpacing: Number($('#tbSpacing').value) }, extra || {});
+  await api('/api/songs/'+song.id, {method:'PUT', body: JSON.stringify(body)});
+  if(body.chartHtml !== undefined){ song.chartHtml = body.chartHtml; const s = songs.find(x => x.id === song.id); if(s){ s.hasChart = !!body.chartHtml; } }
+  song.chartSize = body.chartSize; song.chartSpacing = body.chartSpacing;
+}
+function stopAutoScroll(){
+  if(autoTimer){ cancelAnimationFrame(autoTimer); autoTimer = null; }
+  const b = document.getElementById('tbScroll'); if(b) b.innerHTML = '&#9654; Start';
+}
+function startAutoScroll(){
+  const box = $('#chartBox'); if(!box) return;
+  // Scroll inside the chart box, sized to the part of the app the visitor can
+  // actually see (works the same inside the Wix frame and on its own).
+  const tb = $('#toolbar');
+  box.style.maxHeight = Math.max(220, (visBottom - visTop) - (tb ? tb.offsetHeight : 0) - 40) + 'px';
+  box.style.overflowY = 'auto';
+  bringIntoView(tb || box);
+  let last = performance.now(), acc = 0;
+  const step = now => {
+    const dt = (now - last) / 1000; last = now;
+    acc += dt * autoSpeed * 9;
+    if(acc >= 1){ const px = Math.floor(acc); acc -= px; box.scrollTop += px; }
+    if(box.scrollTop + box.clientHeight >= box.scrollHeight - 1){ stopAutoScroll(); toast('End of chart'); return; }
+    autoTimer = requestAnimationFrame(step);
+  };
+  autoTimer = requestAnimationFrame(step);
+  $('#tbScroll').innerHTML = '&#9208; Stop';
+}
+function inChart(range){ const box = $('#chartBox'); return range && box && box.contains(range.commonAncestorContainer); }
+function restoreSel(){
+  const sel = getSelection();
+  if(sel.rangeCount && inChart(sel.getRangeAt(0)) && !sel.isCollapsed) return true;
+  if(savedRange){ sel.removeAllRanges(); sel.addRange(savedRange); return true; }
+  return false;
+}
+document.addEventListener('selectionchange', () => { const sel = getSelection(); if(sel.rangeCount && !sel.isCollapsed && inChart(sel.getRangeAt(0))) savedRange = sel.getRangeAt(0).cloneRange(); });
+function wireChartToolbar(song, opts){
+  const box = $('#chartBox'); chartDirty = false; savedRange = null;
+  box.addEventListener('input', () => { chartDirty = true; setChartLocked(false); });
+  // Keep the text selection when a toolbar button is pressed.
+  $('#toolbar').querySelectorAll('button').forEach(b => { b.addEventListener('mousedown', e => e.preventDefault()); b.addEventListener('touchstart', () => restoreSel(), {passive:true}); });
+  $('#tbSong').addEventListener('change', e => openSong(Number(e.target.value), {back: opts.back}));
+  $('#lockBtn').addEventListener('click', async () => {
+    if(chartLocked){ setChartLocked(false); bringIntoView($('#toolbar')); try{ box.focus({preventScroll:true}); }catch(e){} toast('Unlocked — select text to colour or bold it'); return; }
+    try{
+      await saveChart(song, { chartHtml: cleanChartHtml(box) });
+      chartDirty = false; setChartLocked(true); toast('Saved, locked in');
+    }catch(e){ toast('Save failed: ' + e.message, true); }
+  });
+  const fmt = (cmd, val) => {
+    if(chartLocked){ toast('Tap Unlock to edit first', true); return; }
+    if(!restoreSel()){ toast('Select some chart text first', true); return; }
+    try{ document.execCommand('styleWithCSS', false, true); }catch(e){}
+    document.execCommand(cmd, false, val);
+    const sel = getSelection(); if(sel.rangeCount && !sel.isCollapsed) savedRange = sel.getRangeAt(0).cloneRange();
+    chartDirty = true; setChartLocked(false);
+  };
+  $('#toolbar').querySelectorAll('.sw').forEach(b => b.addEventListener('click', () => fmt('foreColor', b.dataset.color)));
+  $('#tbBold').addEventListener('click', () => fmt('bold'));
+  $('#tbAll').addEventListener('click', () => {
+    if(chartLocked){ toast('Tap Unlock to edit first', true); return; }
+    const r = document.createRange(); r.selectNodeContents(box); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); savedRange = r.cloneRange();
+  });
+  let tSave = null;
+  const typeChanged = () => {
+    const sz = Number($('#tbSize').value), sp = Number($('#tbSpacing').value);
+    $('#tbSizeV').textContent = sz; $('#tbSpacingV').textContent = sp;
+    applyChartType(box, sz, sp);
+    clearTimeout(tSave);
+    tSave = setTimeout(() => { saveChart(song).then(() => { if(chartLocked) toast('Chart size saved'); }).catch(e => toast('Save failed: ' + e.message, true)); }, 700);
+  };
+  $('#tbSize').addEventListener('input', typeChanged);
+  $('#tbSpacing').addEventListener('input', typeChanged);
+  $('#tbSpeed').addEventListener('input', e => { autoSpeed = Number(e.target.value); $('#tbSpeedV').textContent = autoSpeed; });
+  $('#tbScroll').addEventListener('click', () => { if(autoTimer) stopAutoScroll(); else startAutoScroll(); });
+}
+
+function renderSongEditor(song, focusId, opts){
+  opts = Object.assign({}, opts||{}, {editMin:false});
   const el = $('#editArea');
   el.innerHTML = `
   <div class="panel" style="margin-top:18px">
@@ -223,7 +580,10 @@ function renderSongEditor(song){
       <button class="btn danger" id="delSong">Delete song</button>
     </div>
   </div>`;
-  $('#cancelEdit').addEventListener('click', () => { el.innerHTML=''; });
+  const panel = el.firstElementChild;
+  bringIntoView(panel);
+  const f = $('#'+(focusId||'eTitle')); if(f){ try{ f.focus({preventScroll:true}); if(f.select) f.select(); }catch(e){} }
+  $('#cancelEdit').addEventListener('click', () => { el.innerHTML=''; bringIntoView(main); });
   $('#delSong').addEventListener('click', async () => {
     if(!confirm('Delete "'+song.title+'" for good? Setlists keep their own entries.')) return;
     await api('/api/songs/'+song.id, {method:'DELETE'});
@@ -240,8 +600,8 @@ function renderSongEditor(song){
     };
     try{
       await api('/api/songs/'+song.id, {method:'PUT', body: JSON.stringify(body)});
-      toast('Saved'); await loadSongs(); openSong(song.id);
-    }catch(e){ toast('Save failed: '+e.message); }
+      toast('Saved'); await loadSongs(); openSong(song.id, opts);
+    }catch(e){ toast('Save failed: '+e.message, true); }
   });
 }
 
@@ -288,45 +648,83 @@ async function renderQueue(){
   main.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async () => { await api('/api/queue/'+b.dataset.del+'/delete', {method:'POST'}); renderQueue(); }));
 }
 
+const openSetlists = new Set();
+function chartFor(e){ const s = findCatalogSong(e.title, e.artist); return s; }
+function setlistSongsHTML(sl){
+  return `<div class="search" style="margin:10px 0"><input type="text" class="slQ" data-q="${sl.id}" placeholder="Search inside ${esc(sl.name)}..."></div>
+  <div class="slsongs" id="slList-${sl.id}">${sl.songs.map((e,i) => {
+    const cs = chartFor(e);
+    return `<div class="setlist-row slrow${e.off?' is-off':''}" data-row="${sl.id}-${i}">
+      <div style="min-width:0;flex:1"><div class="n">${i+1}. ${esc(e.title)}</div><div class="small">${esc(e.artist||'')}</div></div>
+      <span class="c">
+        ${cs && cs.hasChart ? `<button class="iconbtn" data-chart="${sl.id}-${i}" title="Open chart">&#127926;</button>` : `<span class="iconbtn dim" title="No chart yet">&#127926;</span>`}
+        <button class="tog ${e.off?'':'on'}" data-off="${sl.id}-${i}" title="Song on/off">${e.off?'OFF':'ON'}</button>
+        <button class="btn ghost sm" data-open="${esc(e.title)}" data-idx="${i}" data-sl="${sl.id}">Open</button>
+        <button class="btn ghost sm" data-rm="${sl.id}-${i}">Remove</button>
+      </span></div>`; }).join('') || '<p class="empty">No songs in this setlist yet.</p>'}</div>`;
+}
 async function renderSetlists(){
-  try{ const d = await api('/api/setlists'); setlists = d.setlists || []; }catch(e){ setlists = []; }
-  if(currentSetlist){
-    const sl = setlists.find(s => s.id === currentSetlist);
-    if(!sl){ currentSetlist = null; return renderSetlists(); }
-    main.innerHTML = `
-    <p><a href="#" id="backSl" style="color:var(--gold);font-weight:700">&lsaquo; Back to Setlists</a></p>
-    <h1 style="font-size:32px">${esc(sl.name)}</h1>
-    <p class="lede">${sl.songs.length} songs &middot; ${esc(sl.date||'')}</p>
-    <div class="search"><input id="slQ" type="text" placeholder="Search inside this setlist..."></div>
-    <div id="slList">${sl.songs.map((e,i)=>`<div class="setlist-row"><div><div class="n">${i+1}. ${esc(e.title)}</div><div class="small">${esc(e.artist||'')}</div></div><span class="c">${e.off?'OFF':''} <button class="btn ghost" data-open="${esc(e.title)}">Open</button> <button class="btn ghost" data-rm="${i}">Remove</button></span></div>`).join('')}</div>`;
-    $('#backSl').addEventListener('click', e => { e.preventDefault(); currentSetlist=null; renderSetlists(); });
-    $('#slQ').addEventListener('input', e => {
-      const q = e.target.value.toLowerCase();
-      document.querySelectorAll('#slList .setlist-row').forEach(row => {
-        row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
-      });
-    });
-    main.querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', async () => {
-      const songs = sl.songs.filter((_,i)=>i!==Number(b.dataset.rm));
-      await api('/api/setlists/'+sl.id, {method:'PUT', body: JSON.stringify({songs})});
-      toast('Removed from setlist'); renderSetlists();
-    }));
-    main.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', async () => {
-      const found = songs.find(s => s.title.toLowerCase() === b.dataset.open.toLowerCase());
-      if(found) openSong(found.id); else toast('No catalogue song matches "'+b.dataset.open+'"');
-    }));
-    return;
-  }
+  try{ const d = await api('/api/setlists'); setlists = d.setlists || []; }catch(e){ setlists = []; toast('Could not load setlists: '+e.message, true); }
+  if(currentSetlist){ openSetlists.add(currentSetlist); currentSetlist = null; }
   main.innerHTML = `
   <h1 style="font-size:32px">SETLISTS</h1>
-  ${setlists.map(s=>`<div class="setlist-row" data-sl="${s.id}"><div><div class="n">${esc(s.name)}</div><div class="small">${esc(s.date||'')}</div></div><span class="c">${s.songs.length} songs</span></div>`).join('') || '<p class="empty">No setlists yet.</p>'}
+  ${setlists.map(sl => `<div class="slcard" data-card="${sl.id}">
+    <div class="slhead">
+      <div style="flex:1;min-width:160px"><div class="n" style="font-size:18px;font-weight:800">${esc(sl.name)}</div><div class="small">${sl.songs.length} songs${sl.date?' &middot; '+esc(sl.date):''} &middot; ${sl.songs.filter(e=>!e.off).length} on</div></div>
+      <span class="viewers">Viewers <button class="tog ${sl.viewers!==false?'on':''}" data-viewers="${sl.id}">${sl.viewers!==false?'ON':'OFF'}</button></span>
+      <button class="btn ghost sm" data-load="${sl.id}">Load into maker</button>
+      <button class="btn sm" data-toggle="${sl.id}">${openSetlists.has(sl.id)?'Hide songs':'View songs'}</button>
+    </div>
+    ${openSetlists.has(sl.id) ? setlistSongsHTML(sl) : ''}
+  </div>`).join('') || '<p class="empty">No setlists yet.</p>'}
   <div class="panel" style="margin-top:18px"><h2>New setlist</h2>
     <label>Name</label><input type="text" id="nlName" placeholder="Setlist name">
     <div class="btnrow"><button class="btn" id="nlCreate">Create setlist</button></div>
   </div>`;
-  main.querySelectorAll('[data-sl]').forEach(el => el.addEventListener('click', () => { currentSetlist = Number(el.dataset.sl); renderSetlists(); }));
+  const byId = id => setlists.find(s => s.id === Number(id));
+  const split = v => { const [a,b] = String(v).split('-').map(Number); return [byId(a), b]; };
+  main.querySelectorAll('[data-toggle]').forEach(b => b.addEventListener('click', async () => {
+    const id = Number(b.dataset.toggle);
+    if(openSetlists.has(id)) openSetlists.delete(id); else openSetlists.add(id);
+    await renderSetlists(); bringIntoView(main.querySelector('[data-card="'+id+'"]'));
+  }));
+  main.querySelectorAll('[data-viewers]').forEach(b => b.addEventListener('click', async () => {
+    const sl = byId(b.dataset.viewers); const next = sl.viewers === false;
+    await api('/api/setlists/'+sl.id, {method:'PUT', body: JSON.stringify({viewers: next})});
+    sl.viewers = next; b.classList.toggle('on', next); b.textContent = next ? 'ON' : 'OFF';
+    toast(next ? '"'+sl.name+'" is visible to viewers' : '"'+sl.name+'" is hidden from viewers');
+  }));
+  main.querySelectorAll('[data-load]').forEach(b => b.addEventListener('click', async () => {
+    makerSetlist = Number(b.dataset.load); view = 'maker'; currentSetlist = null;
+    document.querySelectorAll('#topnav button').forEach(x => x.classList.toggle('on', x.dataset.view === 'maker'));
+    await renderMaker(); freshView(); toast('Loaded into Setlist Maker');
+  }));
+  main.querySelectorAll('[data-off]').forEach(b => b.addEventListener('click', async () => {
+    const [sl, i] = split(b.dataset.off); const e = sl.songs[i]; const next = !e.off;
+    await api('/api/setlists/'+sl.id, {method:'PUT', body: JSON.stringify({offIndex: i, off: next})});
+    e.off = next ? 1 : 0; b.classList.toggle('on', !next); b.textContent = next ? 'OFF' : 'ON';
+    b.closest('.slrow').classList.toggle('is-off', next);
+  }));
+  main.querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', async () => {
+    const [sl, i] = split(b.dataset.rm);
+    if(!confirm('Remove "'+sl.songs[i].title+'" from '+sl.name+'?')) return;
+    const keep = sl.songs.filter((_,j) => j !== i);
+    await api('/api/setlists/'+sl.id, {method:'PUT', body: JSON.stringify({songs: keep})});
+    toast('Removed from setlist'); const y = window.scrollY; await renderSetlists(); window.scrollTo(0, y);
+  }));
+  const openEntry = (sl, i) => {
+    const e = sl.songs[i]; const found = findCatalogSong(e.title, e.artist);
+    if(found) openSong(found.id, {back: 'setlists', setlist: sl.id, idx: i});
+    else toast('"'+e.title+'" is not in the song catalogue yet — add it with + Add song.', true);
+  };
+  main.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => openEntry(byId(b.dataset.sl), Number(b.dataset.idx))));
+  main.querySelectorAll('[data-chart]').forEach(b => b.addEventListener('click', () => { const [sl, i] = split(b.dataset.chart); openEntry(sl, i); }));
+  main.querySelectorAll('.slQ').forEach(inp => inp.addEventListener('input', e => {
+    const q = e.target.value.toLowerCase();
+    document.querySelectorAll('#slList-'+inp.dataset.q+' .setlist-row').forEach(row => { row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none'; });
+  }));
   $('#nlCreate').addEventListener('click', async () => {
-    const name = $('#nlName').value.trim(); if(!name){ toast('Name is required'); return; }
+    const name = $('#nlName').value.trim(); if(!name){ toast('Name is required', true); return; }
     await api('/api/setlists', {method:'POST', body: JSON.stringify({name, songs: []})});
     toast('Setlist created'); renderSetlists();
   });
@@ -436,7 +834,7 @@ async function renderMaker(){
       <input type="text" id="mkQ" placeholder="Search the catalogue...">
       <div id="mkResults" style="margin-top:10px"></div>
     </div>`;
-    $('#mkBack').addEventListener('click', e => { e.preventDefault(); makerSetlist = null; renderMaker(); });
+    $('#mkBack').addEventListener('click', e => { e.preventDefault(); makerSetlist = null; renderMaker().then(freshView); });
     main.querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', async () => {
       const remaining = sl.songs.filter((_,i)=>i!==Number(b.dataset.rm));
       await api('/api/setlists/'+sl.id, {method:'PUT', body: JSON.stringify({songs: remaining})});
@@ -465,7 +863,7 @@ async function renderMaker(){
     <label>Name</label><input type="text" id="mkName" placeholder="Setlist name">
     <div class="btnrow"><button class="btn" id="mkCreate">Create setlist</button></div>
   </div>`;
-  main.querySelectorAll('[data-mk]').forEach(el => el.addEventListener('click', () => { makerSetlist = Number(el.dataset.mk); renderMaker(); }));
+  main.querySelectorAll('[data-mk]').forEach(el => el.addEventListener('click', async () => { makerSetlist = Number(el.dataset.mk); await renderMaker(); freshView(); }));
   $('#mkCreate').addEventListener('click', async () => {
     const name = $('#mkName').value.trim(); if(!name){ toast('Name is required'); return; }
     await api('/api/setlists', {method:'POST', body: JSON.stringify({name, songs: []})});
@@ -491,35 +889,95 @@ async function renderMod(){
   main.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async () => { await api('/api/queue/'+b.dataset.del+'/delete', {method:'POST'}); renderMod(); }));
 }
 
-function overlayHTML(q){
-  if(!q.length) return '<p class="empty" style="font-size:22px">No requests in the queue.</p>';
-  const first = q[0];
-  const s = first.songId ? songs.find(x => x.id === first.songId) : null;
-  const next = q.slice(1,4);
-  return `
-  <div style="text-align:center;padding:40px 10px 10px">
-    <div class="small" style="letter-spacing:.2em">NOW PLAYING / NEXT UP</div>
-    <div style="font-size:64px;font-weight:900;line-height:1.05;margin:18px 0 8px">${esc(first.songTitle)}</div>
-    <div style="font-size:32px;color:var(--gold);font-weight:800">${esc(s ? (s.artist||'') : '')}</div>
-  </div>
-  ${next.length ? '<hr><h2 style="font-size:22px">Up next</h2>' + next.map((item,i)=>{
-    const ns = item.songId ? songs.find(x => x.id === item.songId) : null;
-    return `<div style="font-size:24px;padding:8px 0"><b>${i+2}.</b> ${esc(item.songTitle)} <span style="color:var(--muted);font-size:20px">${esc(ns ? (ns.artist||'') : '')}</span></div>`;
-  }).join('') : ''}`;
+const OVERLAY_URL = 'https://killer-keys-tip-app.onrender.com/?view=overlay';
+let overlaySeenExplode = null, overlaySeenIds = null, overlaySeq = 0;
+function overlayMarkup(d){
+  const q = d.queue || [];
+  if(!q.length) return '<div class="ov-empty">No requests in the queue yet</div>';
+  return `<div class="ov-title">&#127929; REQUESTS</div>` + q.map((it,i) => `
+    <div class="ov-item${i===0?' first':''}"><span class="ov-n">${i===0?'&#9654;':i+1}</span>
+      <span class="ov-song">${esc(it.songTitle)}${it.artist?`<span class="ov-artist"> — ${esc(it.artist)}</span>`:''}</span>
+      ${it.tipCents?`<span class="ov-tip">$${(it.tipCents/100).toFixed(0)}</span>`:''}</div>`).join('') +
+    (d.total > q.length ? `<div class="ov-more">+${d.total - q.length} more</div>` : '');
+}
+function explode(stage){
+  if(!stage) return;
+  const layer = document.createElement('div'); layer.className = 'boom';
+  const em = ['&#128165;','&#10024;','&#127929;','&#128176;','&#11088;','&#127881;'];
+  layer.innerHTML = '<div class="boom-core">&#128165;</div>' + Array.from({length: 36}, (_, i) => {
+    const a = (i / 36) * Math.PI * 2, r = 120 + Math.random() * 220;
+    return `<span class="p" style="--x:${Math.cos(a)*r}px;--y:${Math.sin(a)*r}px;animation-delay:${Math.random()*0.12}s">${em[i % em.length]}</span>`;
+  }).join('');
+  stage.appendChild(layer);
+  setTimeout(() => layer.remove(), 1900);
 }
 async function fillOverlay(){
   const body = $('#ovBody'); if(!body) return;
-  try{ const d = await api('/api/queue'); body.innerHTML = overlayHTML(d.queue || []); }
-  catch(e){ body.innerHTML = '<p class="empty">Could not load the queue.</p>'; }
+  const seq = ++overlaySeq;
+  try{
+    const d = await api('/api/overlay');
+    if(seq !== overlaySeq) return; // a newer refresh already started; drop this stale answer
+    body.innerHTML = overlayMarkup(d);
+    const stage = $('#ovStage');
+    if(overlaySeenExplode !== null && d.explodeAt > overlaySeenExplode) explode(stage);
+    const tipped = (d.queue || []).filter(x => x.tipCents > 0).map(x => x.id);
+    if(overlaySeenIds && tipped.some(id => !overlaySeenIds.has(id))) explode(stage);
+    overlaySeenExplode = d.explodeAt; overlaySeenIds = new Set(tipped);
+  }catch(e){ body.innerHTML = '<div class="ov-empty">Could not load the queue (' + esc(e.message) + ')</div>'; }
 }
-function renderOverlay(){
-  main.innerHTML = `
-  <p><a href="#" id="ovBack" style="color:var(--gold);font-weight:700">&lsaquo; Back to board</a></p>
-  <div id="ovBody"><p class="empty">Loading queue…</p></div>`;
-  $('#ovBack').addEventListener('click', e => { e.preventDefault(); setView('board'); });
+async function renderOverlay(){
+  overlaySeenExplode = null; overlaySeenIds = null;
+  // Full-screen, transparent mode when the overlay URL is opened on its own (OBS / Ecamm browser source).
+  const solo = !EMBEDDED && new URLSearchParams(location.search).get('view') === 'overlay';
+  if(solo){
+    document.body.classList.add('ov-solo');
+    main.innerHTML = `<div class="ov-stage solo" id="ovStage"><div id="ovBody"></div></div>`;
+  } else {
+    let st = {}; try{ st = (await api('/api/settings')).settings || {}; }catch(e){}
+    main.innerHTML = `
+    <h1 style="font-size:32px">STREAM <span>OVERLAY</span></h1>
+    <div class="ovgrid">
+      <div>
+        <h2 style="font-size:18px;margin:0 0 8px">Live preview</h2>
+        <div class="ov-stage" id="ovStage"><div id="ovBody"><div class="ov-empty">Loading queue…</div></div></div>
+        <p class="small">Updates every 3 seconds. Tipped requests go to the top and set off the explosion.</p>
+      </div>
+      <div class="panel">
+        <label for="ovVisible">Visible requests: <b id="ovVisibleV">${esc(st.overlayVisible||3)}</b></label>
+        <input type="range" id="ovVisible" min="1" max="10" value="${esc(st.overlayVisible||3)}" style="width:100%">
+        <div class="btnrow"><button class="btn" id="ovExplode">&#128165; Test explosion</button></div>
+        <hr>
+        <h2 style="font-size:18px">Browser source for Ecamm / OBS</h2>
+        <label for="ovPublic">Public address</label>
+        <input type="text" id="ovPublic" value="${esc(st.overlayPublicUrl||OVERLAY_URL)}">
+        <div class="btnrow"><button class="btn" id="ovSave">Save</button><button class="btn ghost" id="ovCopy">Copy</button><button class="btn ghost" id="ovOpen">Open</button></div>
+        <p class="small">Ecamm Live: Overlays &rsaquo; + &rsaquo; Browser/Web. OBS: Sources &rsaquo; + &rsaquo; Browser, 1920&times;1080. The background is transparent.</p>
+      </div>
+    </div>`;
+    let tVis = null;
+    $('#ovVisible').addEventListener('input', e => {
+      $('#ovVisibleV').textContent = e.target.value; clearTimeout(tVis); overlaySeq++;
+      tVis = setTimeout(async () => { await api('/api/settings', {method:'PUT', body: JSON.stringify({overlayVisible: Number(e.target.value)})}); fillOverlay(); toast('Showing ' + e.target.value + ' requests on the overlay'); }, 350);
+    });
+    $('#ovExplode').addEventListener('click', async () => {
+      explode($('#ovStage'));
+      try{ const r = await api('/api/overlay/explode', {method:'POST'}); overlaySeenExplode = r.explodeAt; toast('Explosion sent to the stream overlay'); }
+      catch(e){ toast('Preview only — could not reach the stream overlay: ' + e.message, true); }
+    });
+    $('#ovSave').addEventListener('click', async () => {
+      try{ const r = await api('/api/settings', {method:'PUT', body: JSON.stringify({overlayPublicUrl: $('#ovPublic').value})}); $('#ovPublic').value = r.settings.overlayPublicUrl; toast('Public address saved'); }
+      catch(e){ toast('Save failed: ' + e.message, true); }
+    });
+    $('#ovCopy').addEventListener('click', async () => {
+      const u = $('#ovPublic').value;
+      try{ await navigator.clipboard.writeText(u); toast('Address copied'); }
+      catch(e){ const inp = $('#ovPublic'); inp.focus(); inp.select(); toast('Address selected — press Cmd+C / Ctrl+C to copy'); }
+    });
+    $('#ovOpen').addEventListener('click', () => { const w = window.open($('#ovPublic').value, '_blank', 'noopener'); if(!w) toast('Pop-up blocked — copy the address instead.', true); });
+  }
   fillOverlay();
   if(overlayTimer) clearInterval(overlayTimer);
-  overlayTimer = setInterval(fillOverlay, 15000);
+  overlayTimer = setInterval(fillOverlay, 3000);
 }
 
 async function loadSongs(){
@@ -528,10 +986,12 @@ async function loadSongs(){
 }
 
 function setView(v){
+  stopAutoScroll();
   view = v; currentSetlist = null; makerSetlist = null;
   if(overlayTimer){ clearInterval(overlayTimer); overlayTimer = null; }
   const nav = document.getElementById('topnav');
-  if(nav) nav.style.display = (v==='overlay') ? 'none' : '';
+  const solo = v==='overlay' && !EMBEDDED && new URLSearchParams(location.search).get('view') === 'overlay';
+  if(nav) nav.style.display = solo ? 'none' : '';
   document.querySelectorAll('#topnav button').forEach(b => b.classList.toggle('on', b.dataset.view === v));
   if(v==='board') renderBoard();
   else if(v==='qr') renderQR();
@@ -543,10 +1003,11 @@ function setView(v){
   else if(v==='mod') renderMod();
   else if(v==='overlay') renderOverlay();
   else if(v==='notes') renderNotes();
-  window.scrollTo(0,0);
+  freshView();
 }
 
 document.querySelectorAll('#topnav button').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
+
 
 (async function init(){
   await loadSongs();

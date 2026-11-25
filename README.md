@@ -44,6 +44,28 @@ so a fresh deploy works with no manual step.
 - `data/app.db` — the live SQLite database (created by seed.js / auto-seed;
   git-ignored, do not commit).
 
+## Before every push/deploy: export live data first
+
+A Render deploy wipes `data/app.db` and re-seeds from `data/*.json`. Any edit made
+on the live app since the last deploy (hidden songs, min tips, charts, setlist
+on/off, overlay settings, notes) is lost unless it is in the seed files. So, right
+before pushing:
+
+```sh
+node scripts/export-live.js            # pulls the live API into data/*.json
+git add data && git commit -m "Seed: live data export"
+```
+
+Then push. The queue is not exported (it is per-show).
+
+## UI tests (Wix-like iframe)
+
+`tests/ui/` loads the app inside a mock Wix page (outer page -> filesusr-style
+iframe with `allow="fullscreen"` -> app iframe, 1200 px) and clicks every tab and
+button at 1280 px and 390 px with headless Chrome (`pip install playwright`).
+Serve `tests/ui` on 127.0.0.1:8100 and :8101 (`python3 -m http.server`), then run
+`tests/ui/run.sh`.
+
 ## Persistence note (Render free tier)
 
 The SQLite file lives on the service disk. It persists across restarts but a

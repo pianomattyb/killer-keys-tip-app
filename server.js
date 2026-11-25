@@ -62,7 +62,23 @@ CREATE TABLE IF NOT EXISTS notes (
   body TEXT DEFAULT ''
 );
 INSERT OR IGNORE INTO notes (id, body) VALUES (1, '');
+CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
 `);
+// Columns added after the first deploy: add them in place so an existing
+// database keeps its rows (no wipe needed).
+try { db.exec('ALTER TABLE setlists ADD COLUMN viewers INTEGER DEFAULT 1'); } catch (e) { /* already there */ }
+
+const DEFAULT_SETTINGS = {
+  overlayVisible: '3',
+  overlayPublicUrl: 'https://killer-keys-tip-app.onrender.com/?view=overlay',
+  overlayExplodeAt: '0',
+};
+const getSettings = () => {
+  const out = Object.assign({}, DEFAULT_SETTINGS);
+  for (const r of db.prepare('SELECT key, value FROM settings').all()) out[r.key] = r.value;
+  return out;
+};
+const setSetting = (k, v) => db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(k, String(v));
 
 // ---- helpers ----
 const rowToSong = (r) => ({
@@ -86,13 +102,16 @@ app.get('/api/songs', (req, res) => {
   if (fav) rows = rows.filter((r) => r.favorite);
   if (tag && tag !== 'All') {
     if (tag === 'Most requested') { /* no request counts yet; fall through to all */ }
-    else rows = rows.filter((r) => JSON.parse(r.tags || '[]').includes(tag));
+    else { const t = tag.toLowerCase(); rows = rows.filter((r) => JSON.parse(r.tags || '[]').some((x) => String(x).toLowerCase() === t)); }
   }
   if (q) {
     rows = rows.filter((r) =>
       r.title.toLowerCase().includes(q) || (r.artist || '').toLowerCase().includes(q));
   }
-  res.json({ songs: rows.map(rowToSong) });
+  const counts = {};
+  for (const c of db.prepare('SELECT songId, COUNT(*) n FROM queue WHERE songId IS NOT NULL GROUP BY songId').all()) counts[c.songId] = c.n;
+  if (tag === 'Most requested') rows = rows.filter((r) => counts[r.id]).sort((a, b) => counts[b.id] - counts[a.id]);
+  res.json({ songs: rows.map((r) => Object.assign(rowToSong(r), { requestCount: counts[r.id] || 0 })) });
 });
 
 app.get('/api/songs/:id', (req, res) => {
@@ -157,9 +176,9 @@ app.get('/api/setlists', (req, res) => {
     const entries = db.prepare(
       'SELECT title, artist, off FROM setlist_entries WHERE setlist_id = ? ORDER BY position'
     ).all(s.id);
-    return { id: s.id, name: s.name, date: s.date, status: s.status, songs: entries };
+    return { id: s.id, name: s.name, date: s.date, status: s.status, viewers: s.viewers === null || s.viewers === undefined ? true : !!s.viewers, songs: entries };
   });
-  res.json({ setlists: lists });
+  res.json({ setlists: req.query.public === '1' ? lists.filter((l) => l.viewers) : lists });
 });
 
 app.get('/api/setlists/:id', (req, res) => {
@@ -168,7 +187,7 @@ app.get('/api/setlists/:id', (req, res) => {
   const entries = db.prepare(
     'SELECT title, artist, off FROM setlist_entries WHERE setlist_id = ? ORDER BY position'
   ).all(s.id);
-  res.json({ setlist: { id: s.id, name: s.name, date: s.date, status: s.status, songs: entries } });
+  res.json({ setlist: { id: s.id, name: s.name, date: s.date, status: s.status, viewers: s.viewers !== 0, songs: entries } });
 });
 
 app.post('/api/setlists', (req, res) => {
@@ -191,6 +210,11 @@ app.put('/api/setlists/:id', (req, res) => {
   const b = req.body || {};
   if (b.name !== undefined) db.prepare('UPDATE setlists SET name = ? WHERE id = ?').run(String(b.name).trim(), id);
   if (b.date !== undefined) db.prepare('UPDATE setlists SET date = ? WHERE id = ?').run(String(b.date), id);
+  if (b.viewers !== undefined) db.prepare('UPDATE setlists SET viewers = ? WHERE id = ?').run(b.viewers ? 1 : 0, id);
+  if (b.offIndex !== undefined) {
+    const row = db.prepare('SELECT id FROM setlist_entries WHERE setlist_id = ? ORDER BY position LIMIT 1 OFFSET ?').get(id, Number(b.offIndex));
+    if (row) db.prepare('UPDATE setlist_entries SET off = ? WHERE id = ?').run(b.off ? 1 : 0, row.id);
+  }
   if (Array.isArray(b.songs)) {
     db.prepare('DELETE FROM setlist_entries WHERE setlist_id = ?').run(id);
     const ins = db.prepare(
@@ -205,7 +229,7 @@ app.put('/api/setlists/:id', (req, res) => {
     'SELECT title, artist, off FROM setlist_entries WHERE setlist_id = ? ORDER BY position'
   ).all(id);
   const cur = db.prepare('SELECT * FROM setlists WHERE id = ?').get(id);
-  res.json({ setlist: { id, name: cur.name, date: cur.date, status: cur.status, songs: entries } });
+  res.json({ setlist: { id, name: cur.name, date: cur.date, status: cur.status, viewers: cur.viewers !== 0, songs: entries } });
 });
 
 app.delete('/api/setlists/:id', (req, res) => {
@@ -235,6 +259,25 @@ app.post('/api/queue/:id/:action', (req, res) => {
   const status = action === 'play' ? 'played' : action === 'decline' ? 'declined' : 'queued';
   db.prepare('UPDATE queue SET status = ? WHERE id = ?').run(status, id);
   res.json({ ok: true });
+});
+
+// ---- settings / stream overlay ----
+app.get('/api/settings', (req, res) => res.json({ settings: getSettings() }));
+app.put('/api/settings', (req, res) => {
+  const b = req.body || {};
+  if (b.overlayVisible !== undefined) setSetting('overlayVisible', Math.max(1, Math.min(10, Number(b.overlayVisible) || 3)));
+  if (b.overlayPublicUrl !== undefined) {
+    const u = String(b.overlayPublicUrl).trim();
+    if (u && !/^https?:\/\//i.test(u)) return res.status(400).json({ error: 'Public address must start with http:// or https://' });
+    setSetting('overlayPublicUrl', u || DEFAULT_SETTINGS.overlayPublicUrl);
+  }
+  res.json({ settings: getSettings() });
+});
+app.post('/api/overlay/explode', (req, res) => { const t = Date.now(); setSetting('overlayExplodeAt', t); res.json({ ok: true, explodeAt: t }); });
+app.get('/api/overlay', (req, res) => {
+  const st = getSettings();
+  const rows = db.prepare("SELECT q.*, s.artist FROM queue q LEFT JOIN songs s ON s.id = q.songId WHERE q.status = 'queued' ORDER BY (q.tipCents > 0) DESC, q.tipCents DESC, q.createdAt").all();
+  res.json({ visible: Number(st.overlayVisible), explodeAt: Number(st.overlayExplodeAt), queue: rows.slice(0, Number(st.overlayVisible)), total: rows.length });
 });
 
 // ---- notes ----
@@ -277,8 +320,16 @@ app.put('/api/notes', (req, res) => {
         'INSERT INTO setlist_entries (setlist_id, position, title, artist, off) VALUES (?, ?, ?, ?, ?)');
       for (const sl of setlists) {
         insList.run(sl.id, sl.name, sl.date || '', sl.status || 'saved');
+        if (sl.viewers === false) db.prepare('UPDATE setlists SET viewers = 0 WHERE id = ?').run(sl.id);
         (sl.songs || []).forEach((e, i) => insEntry.run(sl.id, i, e.title, e.artist || '', e.off ? 1 : 0));
       }
+      const setsPath = path.join(DATA_DIR, 'settings.json');
+      if (fs.existsSync(setsPath)) {
+        const st = JSON.parse(fs.readFileSync(setsPath, 'utf8'));
+        for (const [k, v] of Object.entries(st)) if (k !== 'overlayExplodeAt') setSetting(k, v);
+      }
+      const notesPath = path.join(DATA_DIR, 'notes.json');
+      if (fs.existsSync(notesPath)) db.prepare('UPDATE notes SET body = ? WHERE id = 1').run(String(JSON.parse(fs.readFileSync(notesPath, 'utf8')).body || ''));
       db.exec('COMMIT');
       console.log(`autoSeed: seeded ${songs.length} songs, ${setlists.length} setlists`);
     } catch (e) { try { db.exec('ROLLBACK'); } catch (_) {} throw e; }

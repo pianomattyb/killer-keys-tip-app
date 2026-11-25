@@ -6,7 +6,7 @@ const { DatabaseSync } = require('node:sqlite');
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const DB_PATH = path.join(DATA_DIR, 'app.db');
-const ROOT = path.join(__dirname, '..');
+const ROOT = DATA_DIR; // seed JSON files live in data/ (was '..', which broke `npm run seed`)
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 // Ensure tables exist by loading server's schema via a temp open.
