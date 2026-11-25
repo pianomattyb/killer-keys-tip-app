@@ -406,11 +406,19 @@ function parseColor(c){
   if(v[0] === '#') return [parseInt(v.slice(1,3),16), parseInt(v.slice(3,5),16), parseInt(v.slice(5,7),16)];
   const m = v.match(/[\d.]+/g); return m ? m.slice(0,3).map(Number) : null;
 }
-// Too dark to read on black (e.g. black text pasted from a light-mode note) -> drop it, shows as white.
-function unreadable(c){ const rgb = parseColor(c); if(!rgb) return true; const [r,g,b] = rgb; return Math.max(r,g,b) - Math.min(r,g,b) < 40 && lum(r,g,b) < .35; }
-// Dark but coloured (navy, dark red...) -> lift toward white keeping the hue, so it reads on black.
+// Neutral black / near-black / white / near-white (Notes light or dark mode defaults)
+// drop so the text uses the editor's white. Real hues stay. Dark hues (navy, dark red)
+// are lifted toward white, keeping the hue, so they still read on black.
+function isDefaultTextColor(c){
+  const rgb = parseColor(c); if(!rgb) return true;
+  const [r,g,b] = rgb;
+  if(Math.max(r,g,b) - Math.min(r,g,b) >= 40) return false;
+  const L = lum(r,g,b);
+  return L < .35 || L > .85;
+}
 function readableColor(c){
-  const rgb = parseColor(c); if(!rgb || unreadable(c)) return '';
+  if(isDefaultTextColor(c)) return '';
+  const rgb = parseColor(c); if(!rgb) return '';
   let [r,g,b] = rgb, k = 0;
   while(lum(r,g,b) < .16 && k < 14){ r += (255-r)*.18; g += (255-g)*.18; b += (255-b)*.18; k++; }
   return k ? `rgb(${r|0}, ${g|0}, ${b|0})` : c;
@@ -419,36 +427,86 @@ const CHORD_RE = /^[A-G][#b]?(m|maj|min|dim|aug|sus|add|M)?\d*(sus\d*|add\d*|maj
 function chordColor(name){ return NOTE_COLORS[String(name).trim().charAt(0).toUpperCase()] || '#feff0a'; }
 
 // Browser-side sanitizer (paste + before save). Same allow-list as lib/sanitize.js on the server.
+// Apple Notes (Cocoa HTML Writer) puts colours in a <style> block with class rules, or as
+// inline style / <font color> / -webkit-text-fill-color. Class rules are resolved to
+// inline colour spans here; <style> and every other attribute are then dropped.
 const NOTE_TAGS = {DIV:'div', P:'div', BR:'br', SPAN:'span', B:'b', STRONG:'b', U:'u', FONT:'span', I:'span', EM:'span'};
 const NOTE_DROP = /^(SCRIPT|STYLE|IFRAME|OBJECT|EMBED|SVG|MATH|TEMPLATE|NOSCRIPT|HEAD|TITLE|TEXTAREA|SELECT|BUTTON|META|LINK|IMG|VIDEO|AUDIO|INPUT)$/;
-function noteStyle(src, out){
-  const st = src.style; if(!st) return;
-  let col = st.color || (src.tagName === 'FONT' ? src.getAttribute('color') : '');
-  if(col){ const rc = readableColor(col); if(rc) out.style.color = rc; }
-  const fw = st.fontWeight; if(fw === 'normal' || fw === '400' || fw === 'lighter' || Number(fw) < 600) { if(fw) out.style.fontWeight = 'normal'; } else if(fw) out.style.fontWeight = 'bold';
-  const fs = st.fontSize; if(fs && /^\d{1,3}(\.\d+)?(px|pt)$/.test(fs)){ let px = parseFloat(fs) * (fs.endsWith('pt') ? 4/3 : 1); px = Math.max(10, Math.min(48, Math.round(px))); out.style.fontSize = px + 'px'; }
-  const td = st.textDecorationLine || st.textDecoration; if(td && /underline/.test(td)) out.style.textDecorationLine = 'underline';
+function parseNoteCss(doc){
+  const rules = [];
+  doc.querySelectorAll('style').forEach(s => {
+    const css = (s.textContent || '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/<!--|-->/g, '');
+    const re = /([^{}@]+)\{([^{}]*)\}/g; let m;
+    while((m = re.exec(css))){
+      for(const sel of m[1].split(',').map(x => x.trim()).filter(Boolean)){
+        const compact = sel.replace(/\s+/g,' ').trim();
+        if(/[>+~:[\]@]/.test(compact) || /\s/.test(compact)) continue;
+        if(!/^([a-z][a-z0-9-]*)?(#[A-Za-z][\w-]*)?(\.[A-Za-z][\w-]*)*$/i.test(compact) || !compact) continue;
+        rules.push({selector: compact, style: m[2]});
+      }
+    }
+  });
+  return rules;
 }
-function cleanNoteNode(src, dst){
+function cssMatches(el, selector){
+  const m = String(selector).match(/^([a-z][a-z0-9-]*)?(#[A-Za-z][\w-]*)?((?:\.[A-Za-z][\w-]*)*)$/i);
+  if(!m) return false;
+  const t = (m[1]||'').toLowerCase(), id = (m[2]||'').slice(1), cs = (m[3]||'').split('.').filter(Boolean);
+  if(t && t !== el.tagName.toLowerCase()) return false;
+  if(id && id !== el.id) return false;
+  for(const c of cs){ if(!el.classList || !el.classList.contains(c)) return false; }
+  return !!(t || id || cs.length);
+}
+function noteStyle(src, out, rules){
+  const tmp = document.createElement('span');
+  let cssText = '';
+  if(rules && rules.length){
+    for(const r of rules){ if(cssMatches(src, r.selector)) cssText += ';' + r.style; }
+    if(cssText) tmp.setAttribute('style', cssText);
+  }
+  const st = src.style, ts = tmp.style;
+  let col = st.color || ts.color || src.getAttribute('color') || '';
+  if(!col || isDefaultTextColor(col)){
+    const fill = st.getPropertyValue('-webkit-text-fill-color') || ts.getPropertyValue('-webkit-text-fill-color');
+    if(fill) col = fill;
+  }
+  if(col){ const rc = readableColor(col); if(rc) out.style.color = rc; }
+  // Inline font-weight (including 'normal' to clear bold) wins. From a stylesheet,
+  // only keep explicit bold — Notes' `font: 18px Helvetica` shorthand would otherwise
+  // un-bold every line and fight the editor's bold default.
+  const fw = st.fontWeight;
+  if(fw){ out.style.fontWeight = (fw === 'normal' || fw === '400' || fw === 'lighter' || Number(fw) < 600) ? 'normal' : 'bold'; }
+  else if(/font-weight\s*:\s*(bold|[6-9]00|bolder)/i.test(cssText) || (ts.fontWeight && Number(ts.fontWeight) >= 600) || /^(bold|bolder)$/i.test(ts.fontWeight)) out.style.fontWeight = 'bold';
+  const fs = st.fontSize || (/font-size\s*:/i.test(cssText) ? ts.fontSize : '');
+  if(fs && /^\d{1,3}(\.\d+)?(px|pt)$/.test(fs)){ let px = parseFloat(fs) * (fs.endsWith('pt') ? 4/3 : 1); px = Math.max(10, Math.min(48, Math.round(px))); out.style.fontSize = px + 'px'; }
+  const td = st.textDecorationLine || st.textDecoration || ts.textDecorationLine || ts.textDecoration; if(td && /underline/.test(td)) out.style.textDecorationLine = 'underline';
+}
+function cleanNoteNode(src, dst, rules){
   for(const n of Array.from(src.childNodes)){
     if(n.nodeType === 3){ dst.appendChild(document.createTextNode(n.nodeValue)); continue; }
     if(n.nodeType !== 1 || NOTE_DROP.test(n.tagName)) continue;
     const tag = NOTE_TAGS[n.tagName];
-    if(!tag){ cleanNoteNode(n, dst); if(/^(H[1-6]|LI|TR|PRE|BLOCKQUOTE)$/.test(n.tagName)) dst.appendChild(document.createElement('br')); continue; }
+    if(!tag){ cleanNoteNode(n, dst, rules); if(/^(H[1-6]|LI|TR|PRE|BLOCKQUOTE)$/.test(n.tagName)) dst.appendChild(document.createElement('br')); continue; }
     const el = document.createElement(tag);
     if(tag === 'br'){ dst.appendChild(el); continue; }
-    noteStyle(n, el);
+    noteStyle(n, el, rules);
     if(n.classList && n.classList.contains('ch')) el.className = 'ch';
-    cleanNoteNode(n, el);
+    else if(n.classList && n.classList.contains('sec')) el.className = 'sec';
+    cleanNoteNode(n, el, rules);
     if(tag === 'span' && !el.getAttribute('style') && !el.className){ while(el.firstChild) dst.appendChild(el.firstChild); continue; }
     dst.appendChild(el);
   }
 }
 function sanitizeNoteHtml(html){
-  // DOMParser makes an inert document: nothing in it runs or loads.
-  const doc = new DOMParser().parseFromString('<body>' + String(html||'') + '</body>', 'text/html');
+  // Parse the full clipboard document so <style> rules in <head> are kept long
+  // enough to resolve class colours. DOMParser is inert: nothing runs or loads.
+  let raw = String(html||'');
+  const start = raw.search(/<html\b/i);
+  if(start > 0) raw = raw.slice(start);
+  const doc = new DOMParser().parseFromString(raw, 'text/html');
+  const rules = parseNoteCss(doc);
   const out = document.createElement('div');
-  cleanNoteNode(doc.body, out);
+  cleanNoteNode(doc.body, out, rules);
   return out.innerHTML;
 }
 // Old chord-over-lyric chart (HTML with .ch spans, or plain text) -> inline-chord note.
@@ -531,7 +589,7 @@ function looksLikeChordChart(text){
 }
 function notePasteInsert(cd){
   const html = cd.getData('text/html'), text = cd.getData('text/plain');
-  if(html){ const clean = sanitizeNoteHtml(html.replace(/^[\s\S]*<body[^>]*>|<\/body>[\s\S]*$/gi, '')); document.execCommand('insertHTML', false, clean || esc(text)); }
+  if(html){ const clean = sanitizeNoteHtml(html); document.execCommand('insertHTML', false, clean || esc(text)); }
   else if(text && looksLikeChordChart(text)) document.execCommand('insertHTML', false, noteFromChart(text));
   else if(text) document.execCommand('insertText', false, text);
 }
