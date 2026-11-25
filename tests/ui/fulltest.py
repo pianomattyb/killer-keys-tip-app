@@ -59,6 +59,15 @@ async def main():
         rec('1 chart box dark, no dark text', bool(bg) and bg['bg'] in ('rgb(11, 11, 11)',) and bg['darkTextEls']==0, bg)
         await app.evaluate("document.querySelector('#chartBox').scrollIntoView({block:'start'})"); await pg.wait_for_timeout(300)
         await shot('1-dark-chart')
+        if W < 500:
+            for sid, nm in ((62, '10-long-line-song'), (3, '11-long-line-song-b')):
+                await app.evaluate(f"openSong({sid})"); await pg.wait_for_timeout(900)
+                await app.evaluate("document.querySelector('#chartBox').scrollIntoView({block:'start'})"); await pg.wait_for_timeout(300)
+                clip = await app.evaluate("(()=>{const box=document.querySelector('#chartBox'); const inner=box.getBoundingClientRect().right-parseFloat(getComputedStyle(box).paddingRight)+1.5; let o=0; box.querySelectorAll('*').forEach(d=>{const r=d.getBoundingClientRect(); if(r.width&&r.right>inner) o++}); return [o, box.scrollWidth>box.clientWidth+1, box.style.fontSize, box.classList.contains('wrapped')]})()")
+                rec(f'390px chart {sid}: nothing clipped', clip[0]==0 and not clip[1], clip)
+                await shot(nm)
+            await app.click('.filters button[data-tag="All"]') if await app.locator('.filters').count() else None
+            await app.evaluate("openSong(songs.find(s=>s.title.startsWith('Hotel California')).id)"); await pg.wait_for_timeout(900)
         await tap(app.locator('#editBtn'))
         ok,y = await visible(app.locator('#editArea .panel h2'))
         rec('2 Edit song & chart opens editor in view', ok, y)

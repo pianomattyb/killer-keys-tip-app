@@ -65,6 +65,9 @@ textarea{min-height:120px;font-family:ui-monospace,Menlo,Consolas,monospace}
 .chartbox.plain{white-space:pre}
 .chartbox:empty::before{content:attr(data-empty);color:var(--muted);font-family:inherit}
 .chartbox.editing{outline:2px dashed var(--gold);outline-offset:3px;cursor:text}
+.chartbox .wrapcont{padding-left:1ch}
+.chartbox .softwrap,.chartbox .softwrap *{white-space:pre-wrap!important;overflow-wrap:anywhere;tab-size:2}
+@media (max-width:640px){.chartbox.editing div,.chartbox.editing p{white-space:pre-wrap}}
 .charthead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
 .lockstat{font-size:13px;font-weight:800;color:var(--green);margin-left:auto}
 .lockstat.dirty{color:var(--gold)}
@@ -369,12 +372,131 @@ function darkenChart(box){
 }
 // Keep chord-over-lyric alignment (no wrapping): shrink the font until the
 // widest line fits, down to 11 px; past that the box scrolls sideways.
+// ---- chart layout: nothing may be clipped on a phone ----
+// 1) shrink the font until the widest line fits (down to 8 px on narrow screens,
+//    11 px on desktop); 2) if a line still does not fit, wrap it - a chord line and
+//    the lyric line under it are wrapped together at the same column, so chords stay
+//    over the right syllables. Wrapping is display-only; the saved chart is untouched.
+let chartOrigHtml = null;
+const CHART_NARROW = 600;
+function chartInnerWidth(box){ const cs = getComputedStyle(box); return box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight); }
+const BLOCK_SEL = 'div,p,pre,section,article,table,ul,ol,li,h1,h2,h3,h4,h5,h6,blockquote';
+// Line elements = blocks with no block children (charts are mostly one <div> per line,
+// some are wrapped in an extra container or use <p>).
+function chartLines(box){
+  const out = [];
+  const walk = el => { for(const c of el.children){ if(c.matches(BLOCK_SEL)){ if(c.querySelector(BLOCK_SEL)) walk(c); else out.push(c); } } };
+  walk(box); return out;
+}
+function lineOver(el){ return el.scrollWidth > el.clientWidth + 1; }
+function chartOverflows(box){ return box.scrollWidth > box.clientWidth + 1 || chartLines(box).some(lineOver); }
+function isSimpleLine(el){ return !el.querySelector('br,img,table') && !/\t/.test(el.textContent) && !el.matches('p,li,h1,h2,h3,h4,h5,h6'); }
 function fitChart(box, size){
   let fs = Number(size)||19, start = fs, guard = 0;
+  const minFs = box.clientWidth < CHART_NARROW ? 8 : 11;
   box.style.fontSize = fs + 'px';
-  while(box.scrollWidth > box.clientWidth + 1 && fs > 11 && guard++ < 30){ fs -= 1; box.style.fontSize = fs + 'px'; }
+  while(chartOverflows(box) && fs > minFs && guard++ < 40){ fs -= 1; box.style.fontSize = fs + 'px'; }
   return fs !== start;
 }
+function lineText(el){ return el.textContent.replace(/\n/g,''); }
+function isChordLine(el){
+  if(!el.querySelector || !el.querySelector('.ch')) return false;
+  const c = el.cloneNode(true); c.querySelectorAll('.ch').forEach(x => x.remove());
+  return /^[\s\u00a0|\-–x\d().,:*/]*$/.test(c.textContent);
+}
+// Clone the character range [start,end) of a line element, keeping its inline markup.
+function sliceLine(el, start, end){
+  const r = document.createRange();
+  const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  let pos = 0, n, setS = false, setE = false;
+  while((n = tw.nextNode())){
+    const t = n.nodeValue.replace(/\n/g,''); const len = n.nodeValue.length;
+    if(!setS && start <= pos + t.length){ r.setStart(n, Math.min(len, start - pos)); setS = true; }
+    if(setS && end <= pos + t.length){ r.setEnd(n, Math.min(len, end - pos)); setE = true; break; }
+    pos += t.length;
+  }
+  if(!setS) return document.createDocumentFragment();
+  if(!setE) r.setEndAfter(el.lastChild);
+  return r.cloneContents();
+}
+function chordSpans(el){
+  // [startCol, endCol) of every chord in a chord line
+  const out = []; let pos = 0;
+  const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT); let n;
+  while((n = tw.nextNode())){
+    const t = n.nodeValue.replace(/\n/g,'');
+    if(n.parentElement && n.parentElement.closest('.ch')) out.push([pos, pos + t.length]);
+    pos += t.length;
+  }
+  return out;
+}
+function pickCut(lyric, chords, from, max){
+  const hard = from + max;
+  for(let c = hard; c > from + Math.floor(max * 0.4); c--){
+    const okLyric = !lyric || c >= lyric.length || /[\s\u00a0]/.test(lyric[c-1]) || /[\s\u00a0]/.test(lyric[c]);
+    const okChord = !chords.some(([s0,e0]) => s0 < c && c < e0);
+    if(okLyric && okChord) return c;
+  }
+  for(let c = hard; c > from + 1; c--) if(!chords.some(([s0,e0]) => s0 < c && c < e0)) return c;
+  return hard;
+}
+function wrapChart(box){
+  const cols = Math.max(12, Math.floor(chartInnerWidth(box) / measureCh(box)) - 1); // -1 for the continuation indent
+  const lines = chartLines(box);
+  for(let i = 0; i < lines.length; i++){
+    const a = lines[i];
+    if(!isSimpleLine(a)){ continue; }
+    const chordLine = isChordLine(a);
+    const nx = lines[i+1];
+    const b = chordLine && nx && nx.parentElement === a.parentElement && nx.previousElementSibling === a && isSimpleLine(nx) && !isChordLine(nx) && lineText(nx).trim() ? nx : null;
+    const aLen = lineText(a).length, bLen = b ? lineText(b).length : 0;
+    if(Math.max(aLen, bLen) <= cols){ if(b) i++; continue; }
+    const chords = chordLine ? chordSpans(a) : [];
+    const lyricTxt = b ? lineText(b) : (chordLine ? '' : lineText(a));
+    const total = Math.max(aLen, bLen);
+    const frag = document.createDocumentFragment();
+    let from = 0, first = true;
+    while(from < total){
+      let cut = total - from <= cols ? total : pickCut(lyricTxt, chords, from, cols);
+      const mk = (src) => { const d = src.cloneNode(false); const f = sliceLine(src, from, cut); f.querySelectorAll('*').forEach(e => { if(!e.textContent && !e.querySelector('br,img')) e.remove(); }); d.appendChild(f); if(!first) d.classList.add('wrapcont'); return d; };
+      frag.appendChild(mk(a));
+      if(b) frag.appendChild(mk(b));
+      from = cut;
+      // skip one leading space on continuation lines (in the lyric and the chord line together)
+      if(from < total && lyricTxt && /[\s\u00a0]/.test(lyricTxt[from] || '') && !chords.some(([s0]) => s0 === from)) from++;
+      first = false;
+    }
+    a.replaceWith(frag);
+    if(b){ b.remove(); i++; }
+  }
+  // Anything still too wide (complex markup, tabs, one huge word): let it wrap naturally.
+  chartLines(box).forEach(l => { if(lineOver(l)) l.classList.add('softwrap'); });
+  box.classList.add('wrapped');
+}
+function measureCh(box){
+  const probe = document.createElement('span');
+  probe.textContent = 'M'.repeat(50); probe.style.cssText = 'position:absolute;visibility:hidden;white-space:pre';
+  box.appendChild(probe); const w = probe.getBoundingClientRect().width / 50; probe.remove(); return w || 8;
+}
+// Lay the chart out for the current width. autoFit shrinks the font on narrow screens.
+function layoutChart(box, size, spacing, autoFit){
+  if(chartOrigHtml !== null){ box.innerHTML = chartOrigHtml; box.classList.remove('wrapped'); }
+  if(box.classList.contains('plain') && !box.querySelector('div')){
+    // plain-text chart: one div per line so it can be measured/wrapped like HTML charts
+    chartOrigHtml = null;
+    box.innerHTML = box.textContent.split('\n').map(l => '<div>' + (esc(l) || '&nbsp;') + '</div>').join('');
+  }
+  chartOrigHtml = box.innerHTML;
+  applyChartType(box, size, spacing);
+  // when the font is shrunk to fit, shrink the line spacing in proportion so chords stay snug over their lyric
+  if(autoFit && fitChart(box, size)){ const fs = parseFloat(box.style.fontSize); applyChartType(box, fs, spacing * fs / size); }
+  if(chartLocked && box.clientWidth < CHART_NARROW && chartOverflows(box)) wrapChart(box);
+}
+let chartResizeT = null;
+window.addEventListener('resize', () => { clearTimeout(chartResizeT); chartResizeT = setTimeout(() => {
+  const box = document.getElementById('chartBox'); if(!box || !currentSong || !chartLocked) return;
+  layoutChart(box, Number($('#tbSize').value), Number($('#tbSpacing').value), true);
+}, 200); });
 
 function songRow(s){
   const tags = (s.tags||[]).map(t=>`<span class="tag ${t.toLowerCase()==='bangers'?'banger':t.toLowerCase()==='country'?'country':''}">${esc(t)}</span>`).join('');
@@ -418,7 +540,7 @@ async function openSong(id, opts){
     <div class="toolbar" id="toolbar">
       <select id="tbSong" title="Jump to another song's chart">${chartList.map(s => `<option value="${s.id}" ${s.id===song.id?'selected':''}>${esc(s.title)}${s.artist?' — '+esc(s.artist):''}</option>`).join('')}</select>
       <span class="swatches edit-only">${SWATCHES.map(c => `<button class="sw" data-color="${c}" title="Colour selection ${c}" style="background:${c}"></button>`).join('')}</span>
-      <label class="tbl">Size <input type="range" id="tbSize" min="10" max="34" value="${song.chartSize||19}"><span id="tbSizeV">${song.chartSize||19}</span></label>
+      <label class="tbl">Size <input type="range" id="tbSize" min="8" max="34" value="${song.chartSize||19}"><span id="tbSizeV">${song.chartSize||19}</span></label>
       <button class="tbb edit-only" id="tbAll">Select all</button>
       <label class="tbl">Spacing <input type="range" id="tbSpacing" min="0" max="40" value="${song.chartSpacing||19}"><span id="tbSpacingV">${song.chartSpacing||19}</span></label>
       <button class="tbb edit-only" id="tbBold"><b>B</b> Bold selection</button>
@@ -431,8 +553,8 @@ async function openSong(id, opts){
     document.querySelectorAll('#topnav button').forEach(b => b.classList.remove('on'));
     const cb = $('#chartBox');
     darkenChart(cb);
-    applyChartType(cb, song.chartSize||19, song.chartSpacing||19);
-    if(fitChart(cb, song.chartSize||19)){ $('#tbSize').value = parseInt(cb.style.fontSize); $('#tbSizeV').textContent = parseInt(cb.style.fontSize); applyChartType(cb, parseInt(cb.style.fontSize), Number($('#tbSpacing').value)); }
+    chartOrigHtml = null; chartLocked = true;
+    layoutChart(cb, song.chartSize||19, song.chartSpacing||19, true);
     setChartLocked(true);
     wireChartToolbar(song, opts);
 
@@ -467,6 +589,7 @@ function applyChartType(box, size, spacing){
 function setChartLocked(locked){
   chartLocked = locked;
   const box = $('#chartBox'); if(!box) return;
+  if(!locked && box.classList.contains('wrapped') && chartOrigHtml !== null){ box.innerHTML = chartOrigHtml; box.classList.remove('wrapped'); }
   box.contentEditable = locked ? 'false' : 'true';
   box.classList.toggle('editing', !locked);
   $('#toolbar').classList.toggle('locked', locked);
@@ -529,7 +652,9 @@ function wireChartToolbar(song, opts){
     if(chartLocked){ setChartLocked(false); bringIntoView($('#toolbar')); try{ box.focus({preventScroll:true}); }catch(e){} toast('Unlocked — select text to colour or bold it'); return; }
     try{
       await saveChart(song, { chartHtml: cleanChartHtml(box) });
-      chartDirty = false; setChartLocked(true); toast('Saved, locked in');
+      chartDirty = false; setChartLocked(true);
+      chartOrigHtml = null; layoutChart(box, Number($('#tbSize').value), Number($('#tbSpacing').value), true);
+      toast('Saved, locked in');
     }catch(e){ toast('Save failed: ' + e.message, true); }
   });
   const fmt = (cmd, val) => {
@@ -550,7 +675,7 @@ function wireChartToolbar(song, opts){
   const typeChanged = () => {
     const sz = Number($('#tbSize').value), sp = Number($('#tbSpacing').value);
     $('#tbSizeV').textContent = sz; $('#tbSpacingV').textContent = sp;
-    applyChartType(box, sz, sp);
+    if(chartLocked) layoutChart(box, sz, sp, false); else applyChartType(box, sz, sp);
     clearTimeout(tSave);
     tSave = setTimeout(() => { saveChart(song).then(() => { if(chartLocked) toast('Chart size saved'); }).catch(e => toast('Save failed: ' + e.message, true)); }, 700);
   };
