@@ -13,6 +13,7 @@ const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const DB_PATH = path.join(DATA_DIR, 'app.db');
 
 app.use(express.json({ limit: '5mb' }));
+app.get(['/fan', '/fan/'], (req, res) => res.sendFile(path.join(__dirname, 'public', 'fan.html')));
 app.use(express.static(path.join(__dirname, 'public')));
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -70,11 +71,16 @@ CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
 try { db.exec('ALTER TABLE setlists ADD COLUMN viewers INTEGER DEFAULT 1'); } catch (e) { /* already there */ }
 // Rich-text chart (Apple-Notes style): sanitized HTML. Empty = derive from chartHtml in the browser.
 try { db.exec("ALTER TABLE songs ADD COLUMN noteHtml TEXT DEFAULT ''"); } catch (e) { /* already there */ }
+// Viewer requests: kind = song | custom | shoutout, plus the fan's message / custom song text.
+for (const col of ["kind TEXT DEFAULT 'song'", "message TEXT DEFAULT ''", "customText TEXT DEFAULT ''"]) {
+  try { db.exec('ALTER TABLE queue ADD COLUMN ' + col); } catch (e) { /* already there */ }
+}
 
 const DEFAULT_SETTINGS = {
   overlayVisible: '3',
   overlayPublicUrl: 'https://killer-keys-tip-app.onrender.com/?view=overlay',
   overlayExplodeAt: '0',
+  globalMinCents: '0', // Tips page: 0 = Free (tips optional, $5+ if given); else every song without its own min needs this
 };
 const getSettings = () => {
   const out = Object.assign({}, DEFAULT_SETTINGS);
@@ -251,17 +257,72 @@ app.delete('/api/setlists/:id', (req, res) => {
 
 // ---- queue ----
 app.get('/api/queue', (req, res) => {
-  const rows = db.prepare("SELECT * FROM queue WHERE status = 'queued' ORDER BY createdAt").all();
+  const rows = db.prepare("SELECT * FROM queue WHERE status = 'queued' ORDER BY (tipCents > 0) DESC, createdAt").all();
   res.json({ queue: rows });
 });
+// ---- tip rules (one place, used by the viewer page and request validation) ----
+// A song's own minimum ALWAYS wins (set on the song). Otherwise the global Tips-page
+// setting applies. Free (0) = no tip needed; any tip given must still be $5 or more.
+const TIP_FLOOR = 500, SPECIAL_MIN = 1000; // custom request / shout-out minimum
+const globalMin = () => Math.max(0, Number(getSettings().globalMinCents) || 0);
+const requiredFor = (song) => (song && Number(song.minTipCents) > 0 ? Number(song.minTipCents) : globalMin());
+const requiredForKind = (kind, song) => (kind === 'song' ? requiredFor(song) : Math.max(SPECIAL_MIN, globalMin()));
+const money = (c) => '$' + (c % 100 ? (c / 100).toFixed(2) : String(c / 100));
+
 app.post('/api/queue', (req, res) => {
   const b = req.body || {};
-  if (!b.songTitle) return res.status(400).json({ error: 'songTitle required' });
+  const kind = ['custom', 'shoutout'].includes(b.kind) ? b.kind : 'song';
+  const tip = Math.max(0, Math.round(Number(b.tipCents || 0)));
+  let song = null;
+  if (kind === 'song') {
+    if (b.songId) song = db.prepare('SELECT * FROM songs WHERE id = ?').get(Number(b.songId));
+    if (!b.songTitle && !song) return res.status(400).json({ error: 'songTitle required' });
+  }
+  // The performer's own "+ Add to queue" skips the fan rules; every fan request is checked here.
+  if (!b.performer) {
+    if (kind === 'song' && (!song || !song.visible)) return res.status(404).json({ error: 'That song is not on the board.' });
+    if (kind === 'custom' && !String(b.customText || '').trim()) return res.status(400).json({ error: 'Tell us the song and artist for your custom request.' });
+    const need = requiredForKind(kind, song);
+    if (need > 0 && tip < need) return res.status(400).json({ error: `This request needs a tip of at least ${money(need)}.`, requiredCents: need });
+    if (need === 0 && tip > 0 && tip < TIP_FLOOR) return res.status(400).json({ error: 'Tips start at $5 — go $5 or more, or send it with no tip at all.', requiredCents: 0 });
+  }
+  const title = kind === 'song' ? String(song ? song.title : b.songTitle) : kind === 'custom' ? 'Custom: ' + String(b.customText).trim().slice(0, 120) : 'Shout-out';
   const info = db.prepare(
-    "INSERT INTO queue (songId, songTitle, requester, tipCents, status, createdAt) VALUES (?, ?, ?, ?, 'queued', ?)"
-  ).run(b.songId || null, String(b.songTitle), String(b.requester || ''), Number(b.tipCents || 0), Date.now());
-  res.status(201).json({ item: { id: Number(info.lastInsertRowid), songTitle: String(b.songTitle) } });
+    "INSERT INTO queue (songId, songTitle, requester, tipCents, status, createdAt, kind, message, customText) VALUES (?, ?, ?, ?, 'queued', ?, ?, ?, ?)"
+  ).run(song ? song.id : (b.songId || null), title, String(b.requester || '').slice(0, 60), tip, Date.now(), kind,
+    String(b.message || '').slice(0, 300), String(b.customText || '').slice(0, 200));
+  res.status(201).json({ item: { id: Number(info.lastInsertRowid), songTitle: title, tipCents: tip, kind } });
 });
+
+// ---- viewer (fan) board: only what fans may see ----
+const normT = (t) => String(t || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  .replace(/[\u2018\u2019\u201B`´]/g, "'").replace(/&/g, ' and ').replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+const bareT = (t) => normT(String(t || '').replace(/\([^)]*\)/g, ' ').replace(/\[[^\]]*\]/g, ' '));
+const titleKeys = (t) => { const a = normT(t), b2 = bareT(t); const k = new Set([a, b2, a.replace(/ /g, ''), b2.replace(/ /g, '')]); k.delete(''); return [...k]; };
+app.get('/api/fan', (req, res) => {
+  const lists = db.prepare('SELECT * FROM setlists ORDER BY id').all().filter((l) => l.viewers === null || l.viewers === undefined || l.viewers !== 0);
+  let keys = null;
+  if (lists.length) {
+    keys = new Set();
+    for (const l of lists) for (const e of db.prepare('SELECT title FROM setlist_entries WHERE setlist_id = ? AND (off IS NULL OR off = 0)').all(l.id)) titleKeys(e.title).forEach((k) => keys.add(k));
+  }
+  const gm = globalMin();
+  const songs = db.prepare('SELECT id, title, artist, tags, favorite, minTipCents FROM songs WHERE visible = 1 ORDER BY title COLLATE NOCASE').all()
+    .filter((r) => !keys || titleKeys(r.title).some((k) => keys.has(k)))
+    .map((r) => ({ id: r.id, title: r.title, artist: r.artist || '', tags: JSON.parse(r.tags || '[]'), favorite: !!r.favorite,
+      ownMinCents: Number(r.minTipCents) || 0, requiredCents: Number(r.minTipCents) > 0 ? Number(r.minTipCents) : gm }));
+  res.json({ songs, globalMinCents: gm, specialMinCents: Math.max(SPECIAL_MIN, gm), tipFloorCents: TIP_FLOOR,
+    viewerSetlists: lists.map((l) => l.name), version: fanVersion() });
+});
+// A cheap change stamp so View as Fan can refresh only when something changed.
+const fanVersion = () => {
+  const a = db.prepare('SELECT COUNT(*) n, COALESCE(SUM(LENGTH(title)+LENGTH(artist)+LENGTH(tags)+favorite*7+visible*13+minTipCents),0) h FROM songs').get();
+  const l = db.prepare('SELECT COALESCE(SUM(id*31+COALESCE(viewers,1)),0) h FROM setlists').get();
+  const e = db.prepare('SELECT COUNT(*) n, COALESCE(SUM(COALESCE(off,0)*position),0) h FROM setlist_entries').get();
+  return [a.n, a.h, l.h, e.n, e.h, globalMin()].join('.');
+};
+app.get('/api/fan/version', (req, res) => res.json({ version: fanVersion() }));
+
 app.post('/api/queue/:id/:action', (req, res) => {
   const id = Number(req.params.id);
   const action = req.params.action;
@@ -276,6 +337,12 @@ app.get('/api/settings', (req, res) => res.json({ settings: getSettings() }));
 app.put('/api/settings', (req, res) => {
   const b = req.body || {};
   if (b.overlayVisible !== undefined) setSetting('overlayVisible', Math.max(1, Math.min(10, Number(b.overlayVisible) || 3)));
+  if (b.globalMinCents !== undefined) {
+    const v = Math.round(Number(b.globalMinCents));
+    if (!(v >= 0 && v <= 100000)) return res.status(400).json({ error: 'Global minimum must be between $0 and $1000' });
+    if (v > 0 && v < 500) return res.status(400).json({ error: 'Tips start at $5 — pick Free or $5 or more' });
+    setSetting('globalMinCents', v);
+  }
   if (b.overlayPublicUrl !== undefined) {
     const u = String(b.overlayPublicUrl).trim();
     if (u && !/^https?:\/\//i.test(u)) return res.status(400).json({ error: 'Public address must start with http:// or https://' });

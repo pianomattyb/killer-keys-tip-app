@@ -93,6 +93,28 @@ textarea{min-height:120px;font-family:ui-monospace,Menlo,Consolas,monospace}
 .iconbtn.dim{opacity:.25;cursor:default}
 .slrow .c{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 .slrow.is-off .n,.slrow.is-off .small{opacity:.4;text-decoration:line-through}
+.qtip{display:inline-block;background:var(--green);color:#000;border-radius:7px;padding:1px 7px;font-size:13px;font-weight:900;margin-left:6px;vertical-align:2px}
+#topnav button.fanbtn{border-color:#2f6b3f;color:#8ff07a}
+#topnav button.fanbtn.on{background:#58f339;color:#000;border-color:#58f339}
+.tipopts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}
+.tipopt{background:#101013;border:2px solid var(--line);color:var(--text);border-radius:14px;padding:14px 12px;min-height:72px;text-align:left;cursor:pointer;font:inherit}
+.tipopt b{display:block;font-size:20px;font-weight:900}
+.tipopt small{display:block;color:var(--muted);font-size:12.5px;margin-top:3px;line-height:1.35}
+.tipopt.on{border-color:var(--gold);background:#241b05}
+.tipopt.on b{color:var(--gold)}
+.tipcustom{display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap}
+.tipcustom .amt{display:flex;align-items:center;gap:6px;background:#101013;border:1px solid var(--line);border-radius:10px;padding:0 12px;min-height:46px}
+.tipcustom input{background:transparent;border:0;outline:0;color:var(--text);font-size:17px;width:90px;padding:10px 0}
+.tipnow{margin-top:16px;background:#12351f;border:1px solid #2f6b3f;color:#cdeac2;border-radius:12px;padding:12px 14px;font-size:15px;line-height:1.5}
+.tipnow b{color:#8ff07a}
+.ownmins{margin-top:10px}
+.ownmins .setlist-row .c b{color:var(--gold)}
+.fanstage{display:flex;flex-direction:column;align-items:center;gap:12px}
+.fanbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:center;width:100%}
+.phone{position:relative;width:390px;height:844px;border-radius:48px;border:12px solid #1b1b1f;box-shadow:0 0 0 2px #333,0 20px 60px rgba(0,0,0,.6);overflow:hidden;background:#0a0a0c;transform-origin:top left}
+.phone iframe{width:100%;height:calc(100% - 26px);margin-top:26px;border:0;display:block;background:#0a0a0c}
+.phone .notch{position:absolute;top:4px;left:50%;transform:translateX(-50%);width:110px;height:18px;border-radius:12px!important;background:#000;z-index:2;pointer-events:none}
+.phonebox{position:relative}
 .ovgrid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:18px;align-items:start}
 .ovgrid>*{min-width:0}
 #ovVisible{accent-color:var(--gold)}
@@ -142,7 +164,7 @@ hr{border:0;border-top:1px solid var(--line);margin:18px 0}
 <header>
   <div class="logo">THE <b>KILLER KEYS</b></div>
   <div class="sub">Tip &amp; Request App</div>
-  <div class="badge">REQUEST BOARD &middot; FREE</div>
+  <div class="badge" id="priceBadge">REQUEST BOARD &middot; FREE</div>
   <div class="badge">PAYMENTS: LIVE &middot; STRIPE</div>
 </header>
 <nav id="topnav">
@@ -150,6 +172,8 @@ hr{border:0;border-top:1px solid var(--line);margin:18px 0}
   <button data-view="qr">QR code</button>
   <button data-view="add" class="gold">+ Add song</button>
   <button data-view="import" class="gold">+ Smart Import</button>
+  <button data-view="fan" class="fanbtn">&#128241; View as Fan</button>
+  <button data-view="tips">Tips</button>
   <button data-view="queue">Performer Queue</button>
   <button data-view="maker">Setlist Maker</button>
   <button data-view="setlists">Setlists</button>
@@ -175,6 +199,7 @@ let currentSong = null;
 let currentSetlist = null;
 let makerSetlist = null;
 let overlayTimer = null;
+let prevView = 'board';
 let lastSync = null;
 
 const TAGS = ['Favorites','All','60s','70s','80s','90s','2000s','2010s','2020s','Country','Medleys','Bangers','Most requested','Elton John','Billy Joel'];
@@ -643,7 +668,7 @@ async function openSong(id, opts){
     });
     $('#favBtn').addEventListener('click', async () => { await api('/api/songs/'+id, {method:'PUT', body: JSON.stringify({favorite: !song.favorite})}); toast(song.favorite?'Removed from favorites':'Added to favorites'); await loadSongs(); openSong(id, opts); });
     $('#visBtn').addEventListener('click', async () => { await api('/api/songs/'+id, {method:'PUT', body: JSON.stringify({visible: !song.visible})}); toast(song.visible?'Hidden from board':'Shown on board'); await loadSongs(); openSong(id, opts); });
-    $('#queueBtn').addEventListener('click', async () => { await api('/api/queue', {method:'POST', body: JSON.stringify({songId: id, songTitle: song.title})}); toast('Added "'+song.title+'" to the queue'); });
+    $('#queueBtn').addEventListener('click', async () => { await api('/api/queue', {method:'POST', body: JSON.stringify({songId: id, songTitle: song.title, performer: true})}); toast('Added "'+song.title+'" to the queue'); });
     $('#editBtn').addEventListener('click', () => renderSongEditor(song, 'eTitle', opts));
     $('#minBtn').addEventListener('click', () => renderSongEditor(song, 'eMin', opts));
     if(opts.editMin) renderSongEditor(song, 'eMin', opts);
@@ -884,7 +909,7 @@ async function renderQueue(){
   <p class="lede">Killer Keys live — accept requests from the queue and browse the song catalogue.</p>
   <div class="btnrow"><button class="btn ghost" id="qRefresh">Refresh queue</button></div>
   <div style="margin-top:16px">${queue.length ? queue.map(q=>`
-    <div class="setlist-row"><div><div class="n">${esc(q.songTitle)}</div><div class="small">${esc(q.requester||'')}</div></div>
+    <div class="setlist-row"><div style="min-width:0;flex:1"><div class="n">${esc(q.songTitle)}${q.tipCents>0?` <span class="qtip">$${(q.tipCents/100).toFixed(q.tipCents%100?2:0)}</span>`:''}</div><div class="small">${esc(q.requester||'')}${q.message?' — “'+esc(q.message)+'”':''}</div></div>
     <span class="c"><button class="btn ghost" data-play="${q.id}">Played</button> <button class="btn ghost" data-del="${q.id}">Remove</button></span></div>`).join('')
     : '<p class="empty">The queue is empty.</p>'}</div>`;
   $('#qRefresh').addEventListener('click', renderQueue);
@@ -1005,10 +1030,10 @@ async function syncNow(){
 }
 
 function renderQR(){
-  const url = 'https://www.pianomattyb.com/song-board';
+  const url = location.origin + '/fan';
   main.innerHTML = `
   <h1 style="font-size:32px">QR CODE</h1>
-  <p class="lede">Scan to open the Song Board</p>
+  <p class="lede">Scan to open the phone request page (the Song Board fans see)</p>
   <div class="panel" style="text-align:center">
     <div id="qrbox" style="display:inline-block;background:#fff;padding:16px;border-radius:12px;min-width:200px;min-height:200px"></div>
     <p style="margin-top:14px;word-break:break-all"><a href="${url}" target="_blank" rel="noopener">${url}</a></p>
@@ -1230,8 +1255,96 @@ async function loadSongs(){
   catch(e){ songs = []; main.innerHTML = '<p class="lede" style="padding:30px 0">Could not load songs: '+esc(e.message)+' <button class="btn" onclick="location.reload()">Tap to retry</button></p>'; }
 }
 
+
+/* ---------- Tips page: one global request price ---------- */
+async function renderTips(){
+  let cur = 0;
+  try{ const d = await api('/api/settings'); cur = Number((d.settings||d).globalMinCents) || 0; }catch(e){}
+  setPriceBadge(cur);
+  const own = songs.filter(s => Number(s.minTipCents) > 0).sort((a,b) => b.minTipCents - a.minTipCents || a.title.localeCompare(b.title));
+  const m = c => '$' + (c % 100 ? (c/100).toFixed(2) : String(c/100));
+  const mode = cur === 0 ? 'free' : cur === 500 ? '5' : cur === 1000 ? '10' : 'custom';
+  main.innerHTML = `
+  <h1 style="font-size:32px">TIPS</h1>
+  <p class="lede">Set one price for every request on the fan page. Songs with their own minimum tip <b>always keep it</b> — this never overrides them.</p>
+  <div class="panel">
+    <div class="tipopts">
+      <button class="tipopt ${mode==='free'?'on':''}" data-g="0"><b>Free</b><small>Requests need no tip. Tips are optional ($5+ if they tip).</small></button>
+      <button class="tipopt ${mode==='5'?'on':''}" data-g="500"><b>Minimum $5</b><small>Every request needs a $5+ tip.</small></button>
+      <button class="tipopt ${mode==='10'?'on':''}" data-g="1000"><b>Minimum $10</b><small>Every request needs a $10+ tip.</small></button>
+      <button class="tipopt ${mode==='custom'?'on':''}" data-g="custom"><b>Custom</b><small>${mode==='custom' ? 'Now ' + m(cur) + ' per request.' : 'Pick your own amount.'}</small></button>
+    </div>
+    <div class="tipcustom" id="tipCustomRow" ${mode==='custom'?'':'hidden'}>
+      <span class="amt">$<input type="text" inputmode="decimal" id="tipCustomAmt" value="${mode==='custom' ? (cur/100) : ''}" placeholder="e.g. 15" aria-label="Custom request price in dollars"></span>
+      <button class="btn" id="tipCustomSave">Save custom price</button>
+    </div>
+    <div class="tipnow" id="tipNow"></div>
+  </div>
+  <h2 style="font-size:20px;margin:22px 0 4px">Songs with their own minimum (${own.length})</h2>
+  <p class="small" style="margin:0 0 8px">These keep their price no matter what's set above. Change one by editing that song.</p>
+  <div class="ownmins">${own.map(s => `<div class="setlist-row"><div style="min-width:0;flex:1;cursor:pointer" data-opensong="${s.id}"><div class="n">${esc(s.title)}</div><div class="small">${esc(s.artist||'')}</div></div><span class="c"><b>${m(s.minTipCents)}</b></span></div>`).join('') || '<p class="empty">No songs have their own minimum.</p>'}</div>`;
+  const showNow = c => {
+    $('#tipNow').innerHTML = c === 0
+      ? `Now: <b>Free</b> — fans can request any song with no tip (tips optional, $5 or more). Custom requests and shout-outs still need $10. ${own.length} signature song${own.length===1?'':'s'} keep${own.length===1?'s':''} ${own.length===1?'its':'their'} own minimum.`
+      : `Now: <b>${m(c)} minimum</b> on every request without its own price. Custom requests and shout-outs need ${m(Math.max(1000,c))}. ${own.length} signature song${own.length===1?'':'s'} keep${own.length===1?'s':''} ${own.length===1?'its':'their'} own minimum.`;
+  };
+  showNow(cur);
+  const save = async (cents) => {
+    try{
+      await api('/api/settings', {method:'PUT', body: JSON.stringify({globalMinCents: cents})});
+      toast(cents === 0 ? 'Requests are now free' : 'Requests now need a ' + m(cents) + ' minimum tip');
+      renderTips(); pingFan();
+    }catch(e){ toast('Did not save: ' + e.message, true); }
+  };
+  main.querySelectorAll('[data-g]').forEach(b => b.addEventListener('click', () => {
+    if(b.dataset.g === 'custom'){
+      main.querySelectorAll('[data-g]').forEach(x => x.classList.toggle('on', x === b));
+      $('#tipCustomRow').hidden = false; $('#tipCustomAmt').focus(); return;
+    }
+    save(Number(b.dataset.g));
+  }));
+  const saveCustom = () => {
+    const v = Math.round(parseFloat(String($('#tipCustomAmt').value).replace(/[^0-9.]/g,'')) * 100);
+    if(!(v >= 500)){ toast('Enter $5 or more (or pick Free)', true); return; }
+    if(v > 100000){ toast('That is over $1000 — enter a smaller amount', true); return; }
+    save(v);
+  };
+  $('#tipCustomSave').addEventListener('click', saveCustom);
+  $('#tipCustomAmt').addEventListener('keydown', e => { if(e.key === 'Enter') saveCustom(); });
+  main.querySelectorAll('[data-opensong]').forEach(el => el.addEventListener('click', () => openSong(Number(el.dataset.opensong))));
+}
+
+/* ---------- View as Fan: the live phone page in a phone-sized frame ---------- */
+function setPriceBadge(c){ const b = document.getElementById('priceBadge'); if(b) b.innerHTML = 'REQUEST BOARD &middot; ' + (c > 0 ? '$' + (c % 100 ? (c/100).toFixed(2) : c/100) + ' MIN' : 'FREE'); }
+function pingFan(){ const f = document.getElementById('fanFrame'); if(f && f.contentWindow) f.contentWindow.postMessage({kk:'refreshFan'}, '*'); }
+function renderFanPreview(){
+  main.innerHTML = `
+  <div class="fanstage">
+    <div class="fanbar">
+      <button class="btn" id="fanClose">&#10005; Close fan view</button>
+      <button class="btn ghost" id="fanReload">Reload</button>
+      <a class="btn ghost" href="/fan" target="_blank" rel="noopener">Open in new tab</a>
+    </div>
+    <p class="small" style="margin:0;text-align:center">Live — this is the real fan page at iPhone size. Changes to songs, setlists or Tips show up here within a couple of seconds.</p>
+    <div class="phonebox" id="phoneBox"><div class="phone" id="phone"><div class="notch"></div><iframe id="fanFrame" title="Fan view" src="/fan?preview=1"></iframe></div></div>
+  </div>`;
+  const fit = () => {
+    const box = $('#phoneBox'), ph = $('#phone'); if(!box || !ph) return;
+    const avail = Math.min(main.clientWidth || 390, window.innerWidth - 16);
+    const k = Math.min(1, avail / 414);
+    ph.style.transform = 'scale(' + k + ')';
+    box.style.width = (414 * k) + 'px'; box.style.height = (868 * k) + 'px';
+  };
+  fit(); window.addEventListener('resize', fit);
+  $('#fanClose').addEventListener('click', closeFanPreview);
+  $('#fanReload').addEventListener('click', () => { $('#fanFrame').src = '/fan?preview=1&t=' + Date.now(); });
+}
+function closeFanPreview(){ setView(['board','qr','add','import','queue','maker','setlists','mod','overlay','notes','tips'].includes(prevView) ? prevView : 'board'); }
+window.addEventListener('message', e => { if(e.data && e.data.kk === 'closeFan' && view === 'fan') closeFanPreview(); });
+
 function setView(v){
   stopAutoScroll();
+  if(v === 'fan' && view !== 'fan') prevView = view;
   view = v; currentSetlist = null; makerSetlist = null;
   if(overlayTimer){ clearInterval(overlayTimer); overlayTimer = null; }
   const nav = document.getElementById('topnav');
@@ -1248,6 +1361,8 @@ function setView(v){
   else if(v==='mod') renderMod();
   else if(v==='overlay') renderOverlay();
   else if(v==='notes') renderNotes();
+  else if(v==='tips') renderTips();
+  else if(v==='fan') renderFanPreview();
   freshView();
 }
 
@@ -1255,10 +1370,11 @@ document.querySelectorAll('#topnav button').forEach(b => b.addEventListener('cli
 
 
 (async function init(){
+  api('/api/settings').then(d => setPriceBadge(Number((d.settings||{}).globalMinCents) || 0)).catch(() => {});
   await loadSongs();
   lastSync = new Date();
   const v = new URLSearchParams(location.search).get('view');
-  if (v && ['board','qr','add','import','queue','maker','setlists','mod','overlay','notes'].includes(v)) setView(v);
+  if (v && ['board','qr','add','import','queue','maker','setlists','mod','overlay','notes','tips','fan'].includes(v)) setView(v);
   else renderBoard();
 })();
 </script>
