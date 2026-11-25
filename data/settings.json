@@ -1,4 +1,5 @@
 {
  "overlayVisible": "3",
- "overlayPublicUrl": "https://killer-keys-tip-app.onrender.com/?view=overlay"
+ "overlayPublicUrl": "https://killer-keys-tip-app.onrender.com/?view=overlay",
+ "globalMinCents": "0"
 }
