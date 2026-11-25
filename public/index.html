@@ -56,7 +56,7 @@ textarea{min-height:120px;font-family:ui-monospace,Menlo,Consolas,monospace}
 .btn.ghost{background:var(--panel);color:var(--text);border:1px solid var(--line)}
 .btn.danger{background:var(--red);color:#fff}
 .btnrow{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
-.chartbox{background:#000;color:#fff;border:1px solid #222;border-radius:10px;padding:16px 18px;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Arial,sans-serif;font-weight:700;font-size:19px;line-height:1.4;white-space:pre-wrap;overflow-wrap:anywhere;word-break:normal;-webkit-user-select:text;user-select:text;tab-size:4;-webkit-text-size-adjust:100%}
+.chartbox{background:#000;color:#fff;border:1px solid #222;border-radius:10px;padding:16px 18px;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Arial,sans-serif;font-weight:700;font-size:19px;line-height:1.4;white-space:pre-wrap;overflow-wrap:anywhere;word-break:normal;-webkit-user-select:text;user-select:text;tab-size:4;-webkit-text-size-adjust:100%;touch-action:pan-y}
 .chartbox div,.chartbox p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;background:transparent}
 .notebar{position:static;margin-bottom:8px}
 .tagpick{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 4px;align-items:center}
@@ -885,18 +885,70 @@ function wireChartToolbar(song, opts){
     const r = document.createRange(); r.selectNodeContents(box); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); savedRange = r.cloneRange();
   });
   let tSave = null;
-  const typeChanged = () => {
-    const sz = Number($('#tbSize').value), sp = Number($('#tbSpacing').value);
-    $('#tbSizeV').textContent = sz; $('#tbSpacingV').textContent = sp;
-    applyChartType(box, sz, sp);
+  const sizeMin = Number($('#tbSize').min) || 12, sizeMax = Number($('#tbSize').max) || 34;
+  const applySize = (sz, snap) => {
+    const sp = Number($('#tbSpacing').value);
+    sz = Math.min(sizeMax, Math.max(sizeMin, Number(sz)));
+    const shown = Math.round(sz);
+    $('#tbSize').value = shown;
+    $('#tbSizeV').textContent = shown;
+    $('#tbSpacingV').textContent = sp;
+    applyChartType(box, snap ? shown : sz, sp);
     clearTimeout(tSave);
-    tSave = setTimeout(() => { saveChart(song).then(() => { if(chartLocked) toast('Chart size saved'); }).catch(e => toast('Save failed: ' + e.message, true)); }, 700);
+    tSave = setTimeout(() => {
+      applyChartType(box, shown, sp);
+      $('#tbSize').value = shown; $('#tbSizeV').textContent = shown;
+      saveChart(song).then(() => { if(chartLocked) toast('Chart size saved'); }).catch(e => toast('Save failed: ' + e.message, true));
+    }, 700);
   };
+  const typeChanged = () => applySize(Number($('#tbSize').value), true);
   $('#tbSize').addEventListener('input', typeChanged);
   $('#tbSpacing').addEventListener('input', typeChanged);
   $('#tbSpeed').addEventListener('input', e => { autoSpeed = Number(e.target.value); $('#tbSpeedV').textContent = autoSpeed; try{ localStorage.setItem('kkAutoSpeed', autoSpeed); }catch(_){} });
   ['wheel','touchstart','mousedown','keydown'].forEach(ev => box.addEventListener(ev, autoUserInterrupt, {passive:true}));
   $('#tbScroll').addEventListener('click', () => { if(autoTimer || autoPrep) stopAutoScroll(); else startAutoScroll(); });
+
+  // Two-finger pinch (iPhone/iPad + Safari gesture events) and Mac trackpad
+  // pinch (ctrl+wheel, and Safari gesture*) scale the chart Size, clamped to
+  // the slider. preventDefault only for a pinch so the page does not zoom
+  // and one-finger / wheel scrolling still work. Works locked or editing.
+  const touchDist = ev => {
+    if(!ev.touches || ev.touches.length < 2) return 0;
+    const a = ev.touches[0], b = ev.touches[1];
+    return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+  };
+  const chartPx = () => parseFloat(box.style.fontSize) || Number($('#tbSize').value) || 19;
+  let pinchMode = null, pinchStart = 19, pinchStartDist = 0;
+  const endPinch = () => { if(pinchMode){ pinchMode = null; applySize(chartPx(), true); } };
+  box.addEventListener('gesturestart', e => {
+    e.preventDefault();
+    pinchMode = 'gesture'; pinchStart = chartPx();
+  }, {passive:false});
+  box.addEventListener('gesturechange', e => {
+    if(pinchMode !== 'gesture') return;
+    e.preventDefault();
+    applySize(pinchStart * (e.scale || 1), false);
+  }, {passive:false});
+  box.addEventListener('gestureend', e => { e.preventDefault(); endPinch(); }, {passive:false});
+  box.addEventListener('touchstart', e => {
+    if(e.touches.length >= 2 && pinchMode !== 'gesture'){
+      pinchMode = 'touch'; pinchStart = chartPx(); pinchStartDist = touchDist(e) || 1;
+    }
+  }, {passive:true});
+  box.addEventListener('touchmove', e => {
+    if(pinchMode === 'touch' && e.touches.length >= 2){
+      e.preventDefault();
+      applySize(pinchStart * (touchDist(e) / pinchStartDist), false);
+    }
+  }, {passive:false});
+  box.addEventListener('touchend', e => { if(pinchMode === 'touch' && e.touches.length < 2) endPinch(); }, {passive:true});
+  box.addEventListener('touchcancel', e => { if(pinchMode === 'touch') endPinch(); }, {passive:true});
+  box.addEventListener('wheel', e => {
+    if(!(e.ctrlKey || e.metaKey) || pinchMode) return;
+    e.preventDefault();
+    const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 120 : 1;
+    applySize(chartPx() * Math.exp(-(e.deltaY * unit) * 0.0035), false);
+  }, {passive:false});
 }
 
 function renderSongEditor(song, focusId, opts){
