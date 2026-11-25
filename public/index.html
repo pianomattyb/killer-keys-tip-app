@@ -14,9 +14,6 @@ header{padding:14px 20px 0;display:flex;align-items:center;gap:10px;flex-wrap:wr
 .logo b{color:var(--gold)}
 .sub{color:var(--muted);font-size:12px;letter-spacing:.14em;text-transform:uppercase}
 .badge{background:var(--gold);color:#000;font-weight:800;font-size:11px;padding:3px 10px;border-radius:99px;letter-spacing:.06em}
-.viewas{margin-left:auto;display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px;letter-spacing:.1em}
-.viewas button{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:99px;padding:7px 16px;font-weight:700;cursor:pointer}
-.viewas button.on{background:var(--green);border-color:var(--green);color:#000}
 nav{display:flex;gap:8px;flex-wrap:wrap;padding:14px 20px;border-bottom:1px solid var(--line)}
 nav button{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:99px;padding:9px 16px;font-weight:700;cursor:pointer;font-size:14px}
 nav button.on{background:#fff;color:#000;border-color:#fff}
@@ -73,10 +70,6 @@ hr{border:0;border-top:1px solid var(--line);margin:18px 0}
   <div class="logo">THE <b>KILLER KEYS</b></div>
   <div class="sub">Tip &amp; Request App</div>
   <div class="badge">REQUEST BOARD &middot; FREE</div>
-  <div class="viewas">VIEW AS
-    <button id="viewPerformer" class="on">Performer</button>
-    <button id="viewFan">Fan preview</button>
-  </div>
 </header>
 <nav id="topnav">
   <button data-view="board" class="on">Song Board</button>
@@ -98,7 +91,7 @@ let notes = '';
 let view = 'board';
 let filterTag = 'Favorites';
 let searchQ = '';
-let performerMode = true;
+let performerMode = false;
 let currentSong = null;
 let currentSetlist = null;
 
@@ -133,9 +126,6 @@ function renderBoard(){
   const list = visibleSongs();
   main.innerHTML = `
     <h1>REQUEST A <span>$ONG</span></h1>
-    <p class="lede">Requests are free. Tap a song to open it — view its chart, edit it, or add it to the queue.
-    <b>${songs.filter(s=>s.visible).length} songs on the board tonight.</b>
-    The board opens on the band's <b>&#9733; Favorites</b> — tap <b>All</b> or any era to browse everything.</p>
     <div class="search"><input id="q" type="text" placeholder="Search songs or artists..." value="${esc(searchQ)}"><button id="dictBtn" title="Dictation">&#127908; Dictate</button></div>
     <div class="filters">${TAGS.map(t=>`<button data-tag="${t}" class="${filterTag===t?'on':''}">${t==='Favorites'?'&#9733; ':''}${t}</button>`).join('')}</div>
     <div id="list">${list.length ? list.map(songRow).join('') : '<div class="empty">No songs match. Try another search or filter.</div>'}</div>`;
@@ -355,8 +345,6 @@ function setView(v){
 }
 
 document.querySelectorAll('#topnav button').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
-$('#viewPerformer').addEventListener('click', () => { performerMode=true; $('#viewPerformer').classList.add('on'); $('#viewFan').classList.remove('on'); toast('Performer view'); });
-$('#viewFan').addEventListener('click', () => { performerMode=false; $('#viewFan').classList.add('on'); $('#viewPerformer').classList.remove('on'); toast('Fan preview — requests are free, tips start at $5 (tips handled separately)'); });
 
 (async function init(){
   await loadSongs();
