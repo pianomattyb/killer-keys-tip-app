@@ -348,7 +348,9 @@ document.querySelectorAll('#topnav button').forEach(b => b.addEventListener('cli
 
 (async function init(){
   await loadSongs();
-  renderBoard();
+  const v = new URLSearchParams(location.search).get('view');
+  if (v && ['board','add','queue','setlists','notes'].includes(v)) setView(v);
+  else renderBoard();
 })();
 </script>
 </body>
