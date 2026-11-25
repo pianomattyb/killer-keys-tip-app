@@ -5,6 +5,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const { DatabaseSync } = require('node:sqlite');
+const { sanitizeNote } = require('./lib/sanitize');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -67,6 +68,8 @@ CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
 // Columns added after the first deploy: add them in place so an existing
 // database keeps its rows (no wipe needed).
 try { db.exec('ALTER TABLE setlists ADD COLUMN viewers INTEGER DEFAULT 1'); } catch (e) { /* already there */ }
+// Rich-text chart (Apple-Notes style): sanitized HTML. Empty = derive from chartHtml in the browser.
+try { db.exec("ALTER TABLE songs ADD COLUMN noteHtml TEXT DEFAULT ''"); } catch (e) { /* already there */ }
 
 const DEFAULT_SETTINGS = {
   overlayVisible: '3',
@@ -89,7 +92,10 @@ const rowToSong = (r) => ({
   minTipCents: r.minTipCents || 0,
   chartHtml: r.chartHtml || '', chartSize: r.chartSize || 19,
   chartSpacing: r.chartSpacing || 19,
+  noteHtml: r.noteHtml || '',
 });
+// The list endpoint skips the big chart bodies unless ?full=1 (export script).
+const rowToListSong = (r, full) => { const s = rowToSong(r); if (!full) { delete s.chartHtml; delete s.noteHtml; } return s; };
 
 // ---- songs ----
 app.get('/api/songs', (req, res) => {
@@ -111,7 +117,8 @@ app.get('/api/songs', (req, res) => {
   const counts = {};
   for (const c of db.prepare('SELECT songId, COUNT(*) n FROM queue WHERE songId IS NOT NULL GROUP BY songId').all()) counts[c.songId] = c.n;
   if (tag === 'Most requested') rows = rows.filter((r) => counts[r.id]).sort((a, b) => counts[b.id] - counts[a.id]);
-  res.json({ songs: rows.map((r) => Object.assign(rowToSong(r), { requestCount: counts[r.id] || 0 })) });
+  const full = req.query.full === '1';
+  res.json({ songs: rows.map((r) => Object.assign(rowToListSong(r, full), { requestCount: counts[r.id] || 0 })) });
 });
 
 app.get('/api/songs/:id', (req, res) => {
@@ -125,14 +132,14 @@ app.post('/api/songs', (req, res) => {
   if (!b.title || !String(b.title).trim()) return res.status(400).json({ error: 'title required' });
   const tags = Array.isArray(b.tags) ? b.tags : [];
   const info = db.prepare(
-    `INSERT INTO songs (title, artist, tags, favorite, visible, hasChart, chartSource, minTipCents, chartHtml, chartSize, chartSpacing)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO songs (title, artist, tags, favorite, visible, hasChart, chartSource, minTipCents, chartHtml, chartSize, chartSpacing, noteHtml)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     String(b.title).trim(), String(b.artist || '').trim(), JSON.stringify(tags),
     b.favorite ? 1 : 0, b.visible === false ? 0 : 1,
-    b.chartHtml ? 1 : 0, String(b.chartSource || ''),
+    (b.chartHtml || b.noteHtml) ? 1 : 0, String(b.chartSource || ''),
     Number(b.minTipCents || 0), String(b.chartHtml || ''),
-    Number(b.chartSize || 19), Number(b.chartSpacing || 19)
+    Number(b.chartSize || 19), Number(b.chartSpacing || 19), sanitizeNote(b.noteHtml || '')
   );
   const r = db.prepare('SELECT * FROM songs WHERE id = ?').get(info.lastInsertRowid);
   res.status(201).json({ song: rowToSong(r) });
@@ -154,13 +161,16 @@ app.put('/api/songs/:id', (req, res) => {
     chartHtml: b.chartHtml !== undefined ? String(b.chartHtml) : cur.chartHtml,
     chartSize: b.chartSize !== undefined ? Number(b.chartSize) : cur.chartSize,
     chartSpacing: b.chartSpacing !== undefined ? Number(b.chartSpacing) : cur.chartSpacing,
+    noteHtml: b.noteHtml !== undefined ? sanitizeNote(b.noteHtml) : (cur.noteHtml || ''),
   };
+  // A new plain/HTML chart pasted in the song form replaces the old note so it is rebuilt from it.
+  if (b.chartHtml !== undefined && b.noteHtml === undefined && String(b.chartHtml) !== (cur.chartHtml || '')) next.noteHtml = '';
   if (!next.title) return res.status(400).json({ error: 'title required' });
-  next.hasChart = next.chartHtml ? 1 : 0;
+  next.hasChart = (next.chartHtml || next.noteHtml) ? 1 : 0;
   db.prepare(
-    `UPDATE songs SET title=?, artist=?, tags=?, favorite=?, visible=?, hasChart=?, chartSource=?, minTipCents=?, chartHtml=?, chartSize=?, chartSpacing=? WHERE id=?`
+    `UPDATE songs SET title=?, artist=?, tags=?, favorite=?, visible=?, hasChart=?, chartSource=?, minTipCents=?, chartHtml=?, chartSize=?, chartSpacing=?, noteHtml=? WHERE id=?`
   ).run(next.title, next.artist, next.tags, next.favorite, next.visible, next.hasChart,
-    next.chartSource, next.minTipCents, next.chartHtml, next.chartSize, next.chartSpacing, id);
+    next.chartSource, next.minTipCents, next.chartHtml, next.chartSize, next.chartSpacing, next.noteHtml, id);
   res.json({ song: rowToSong(db.prepare('SELECT * FROM songs WHERE id = ?').get(id)) });
 });
 
@@ -306,14 +316,15 @@ app.put('/api/notes', (req, res) => {
     db.exec('BEGIN');
     try {
       const insSong = db.prepare(
-        `INSERT INTO songs (id, title, artist, tags, favorite, visible, hasChart, chartSource, minTipCents, chartHtml, chartSize, chartSpacing)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+        `INSERT INTO songs (id, title, artist, tags, favorite, visible, hasChart, chartSource, minTipCents, chartHtml, chartSize, chartSpacing, noteHtml)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
       for (const sg of songs) {
         const c = charts[String(sg.id)] || null;
         insSong.run(sg.id, sg.title, sg.artist || '', JSON.stringify(sg.tags || []),
           sg.favorite ? 1 : 0, sg.visible ? 1 : 0,
           c ? 1 : (sg.hasChart ? 1 : 0), sg.chartSource || '', Number(sg.minTipCents || 0),
-          c ? (c.chartHtml || '') : '', c ? Number(c.size || 19) : 19, c ? Number(c.spacing || 19) : 19);
+          c ? (c.chartHtml || '') : '', c ? Number(c.size || 19) : 19, c ? Number(c.spacing || 19) : 19,
+          c ? sanitizeNote(c.noteHtml || '') : '');
       }
       const insList = db.prepare('INSERT INTO setlists (id, name, date, status) VALUES (?, ?, ?, ?)');
       const insEntry = db.prepare(

@@ -56,18 +56,11 @@ textarea{min-height:120px;font-family:ui-monospace,Menlo,Consolas,monospace}
 .btn.ghost{background:var(--panel);color:var(--text);border:1px solid var(--line)}
 .btn.danger{background:var(--red);color:#fff}
 .btnrow{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
-.chartbox{background:#0b0b0b;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:16px;overflow-x:auto;font-family:ui-monospace,Menlo,Consolas,"Courier New",monospace;line-height:1.45}
-.chartbox div,.chartbox p,.chartbox pre{white-space:pre;margin:0;background:transparent}
-.chartbox .ch{color:var(--gold);font-weight:800}
-.chartbox .sec{color:#21cbff;font-weight:800}
-.chartbox .song-head{font-size:1.25em;font-weight:900;color:var(--text)}
-.chartbox .song-sub{color:var(--muted)}
-.chartbox.plain{white-space:pre}
-.chartbox:empty::before{content:attr(data-empty);color:var(--muted);font-family:inherit}
-.chartbox.editing{outline:2px dashed var(--gold);outline-offset:3px;cursor:text}
-.chartbox .wrapcont{padding-left:1ch}
-.chartbox .softwrap,.chartbox .softwrap *{white-space:pre-wrap!important;overflow-wrap:anywhere;tab-size:2}
-@media (max-width:640px){.chartbox.editing div,.chartbox.editing p{white-space:pre-wrap}}
+.chartbox{background:#000;color:#fff;border:1px solid #222;border-radius:10px;padding:16px 18px;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Arial,sans-serif;font-weight:700;font-size:19px;line-height:1.4;white-space:pre-wrap;overflow-wrap:anywhere;word-break:normal;-webkit-user-select:text;user-select:text;tab-size:4;-webkit-text-size-adjust:100%}
+.chartbox div,.chartbox p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;background:transparent}
+.chartbox:empty::before{content:attr(data-empty);color:var(--muted);font-weight:600}
+.chartbox.editing{outline:2px dashed var(--gold);outline-offset:3px;cursor:text;caret-color:#feff0a}
+.chartbox ::selection{background:rgba(80,140,255,.55)}
 .charthead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
 .lockstat{font-size:13px;font-weight:800;color:var(--green);margin-left:auto}
 .lockstat.dirty{color:var(--gold)}
@@ -114,7 +107,7 @@ body.ov-solo main{max-width:none;padding:0}
 .boom .p{position:absolute;left:50%;top:50%;font-size:28px;animation:boomp 1.4s ease-out forwards}
 @keyframes boomcore{0%{transform:scale(.2);opacity:1}60%{transform:scale(1.6);opacity:1}100%{transform:scale(2.2);opacity:0}}
 @keyframes boomp{0%{transform:translate(-50%,-50%) scale(.4);opacity:1}100%{transform:translate(calc(-50% + var(--x)),calc(-50% + var(--y))) scale(1.2);opacity:0}}
-@media (max-width:720px){.ovgrid{grid-template-columns:minmax(0,1fr)}.toolbar{position:static}.toolbar select{max-width:100%;width:100%}.slrow{flex-wrap:wrap}.slrow .c{width:100%}}
+@media (max-width:720px){.ovgrid{grid-template-columns:minmax(0,1fr)}.toolbar{position:static}.toolbar #tbSong{max-width:100%;width:100%}.sw{width:30px;height:30px}.tbb{padding:8px 11px}.slrow{flex-wrap:wrap}.slrow .c{width:100%}}
 .chip{display:inline-block;background:#222;border:1px solid #444;border-radius:99px;padding:4px 10px;font-size:12px;margin:2px 4px 2px 0}
 .setlist-row{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:8px;cursor:pointer}
 .setlist-row:hover{border-color:var(--gold)}
@@ -352,151 +345,141 @@ function findCatalogSong(title, artist){
   return hit || null;
 }
 
-// ---- chord chart on a dark background ----
-// Charts were authored for a dark stage display: neon chord colours plus some
-// spans forced to black (#000). On the dark box black text would vanish, so
-// lift any too-dark inline colour toward white, keeping its hue.
+// ---- chord chart = a rich-text note (works like Matt's Apple Notes) ----
+// Black page, white bold sans-serif, his own spacing and line breaks, any letter
+// coloured / bold / underlined / sized. Saved as sanitized HTML in song.noteHtml.
+// Songs that only have the old chord-over-lyric chart get converted on open:
+// each chord is written inline right before its word ("For all the D)times")
+// and coloured by its root, the way Matt writes his notes. Fully editable after.
+const NOTE_COLORS = {A:'#fb0007', B:'#feff0a', C:'#ff8a00', D:'#feff0a', E:'#21cbff', F:'#fb00ff', G:'#b5d900'};
 function lum(r,g,b){ const f = c => { c/=255; return c <= .03928 ? c/12.92 : Math.pow((c+.055)/1.055, 2.4); }; return .2126*f(r)+.7152*f(g)+.0722*f(b); }
-function darkenChart(box){
-  box.querySelectorAll('[style*="color"],font[color]').forEach(el => {
-    if(el.style && el.style.backgroundColor && !el.hasAttribute('data-kkbg')){ el.setAttribute('data-kkbg', el.style.backgroundColor); el.style.backgroundColor = 'transparent'; }
-    const orig = el.style ? el.style.color : '';
-    const m = getComputedStyle(el).color.match(/\d+(\.\d+)?/g); if(!m) return;
-    let [r,g,b] = m.slice(0,3).map(Number);
-    const max = Math.max(r,g,b), min = Math.min(r,g,b);
-    if(max - min < 40 && lum(r,g,b) < .35){ if(!el.hasAttribute('data-kkc')) el.setAttribute('data-kkc', orig); el.style.color = 'var(--text)'; return; }
-    let k = 0;
-    while(lum(r,g,b) < .16 && k < 12){ r += (255-r)*.18; g += (255-g)*.18; b += (255-b)*.18; k++; }
-    if(k){ if(!el.hasAttribute('data-kkc')) el.setAttribute('data-kkc', orig); el.style.color = `rgb(${r|0},${g|0},${b|0})`; }
-  });
+function parseColor(c){
+  const ctx = parseColor.ctx || (parseColor.ctx = document.createElement('canvas').getContext('2d'));
+  ctx.fillStyle = '#010203'; ctx.fillStyle = c; const v = ctx.fillStyle;
+  if(v === '#010203' && !/^#010203$/i.test(c)) return null;
+  if(v[0] === '#') return [parseInt(v.slice(1,3),16), parseInt(v.slice(3,5),16), parseInt(v.slice(5,7),16)];
+  const m = v.match(/[\d.]+/g); return m ? m.slice(0,3).map(Number) : null;
 }
-// Keep chord-over-lyric alignment (no wrapping): shrink the font until the
-// widest line fits, down to 11 px; past that the box scrolls sideways.
-// ---- chart layout: nothing may be clipped on a phone ----
-// 1) shrink the font until the widest line fits (down to 8 px on narrow screens,
-//    11 px on desktop); 2) if a line still does not fit, wrap it - a chord line and
-//    the lyric line under it are wrapped together at the same column, so chords stay
-//    over the right syllables. Wrapping is display-only; the saved chart is untouched.
-let chartOrigHtml = null;
-const CHART_NARROW = 600;
-function chartInnerWidth(box){ const cs = getComputedStyle(box); return box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight); }
-const BLOCK_SEL = 'div,p,pre,section,article,table,ul,ol,li,h1,h2,h3,h4,h5,h6,blockquote';
-// Line elements = blocks with no block children (charts are mostly one <div> per line,
-// some are wrapped in an extra container or use <p>).
-function chartLines(box){
-  const out = [];
-  const walk = el => { for(const c of el.children){ if(c.matches(BLOCK_SEL)){ if(c.querySelector(BLOCK_SEL)) walk(c); else out.push(c); } } };
-  walk(box); return out;
+// Too dark to read on black (e.g. black text pasted from a light-mode note) -> drop it, shows as white.
+function unreadable(c){ const rgb = parseColor(c); if(!rgb) return true; const [r,g,b] = rgb; return Math.max(r,g,b) - Math.min(r,g,b) < 40 && lum(r,g,b) < .35; }
+// Dark but coloured (navy, dark red...) -> lift toward white keeping the hue, so it reads on black.
+function readableColor(c){
+  const rgb = parseColor(c); if(!rgb || unreadable(c)) return '';
+  let [r,g,b] = rgb, k = 0;
+  while(lum(r,g,b) < .16 && k < 14){ r += (255-r)*.18; g += (255-g)*.18; b += (255-b)*.18; k++; }
+  return k ? `rgb(${r|0}, ${g|0}, ${b|0})` : c;
 }
-function lineOver(el){ return el.scrollWidth > el.clientWidth + 1; }
-function chartOverflows(box){ return box.scrollWidth > box.clientWidth + 1 || chartLines(box).some(lineOver); }
-function isSimpleLine(el){ return !el.querySelector('br,img,table') && !/\t/.test(el.textContent) && !el.matches('p,li,h1,h2,h3,h4,h5,h6'); }
-function fitChart(box, size){
-  let fs = Number(size)||19, start = fs, guard = 0;
-  const minFs = box.clientWidth < CHART_NARROW ? 8 : 11;
-  box.style.fontSize = fs + 'px';
-  while(chartOverflows(box) && fs > minFs && guard++ < 40){ fs -= 1; box.style.fontSize = fs + 'px'; }
-  return fs !== start;
+const CHORD_RE = /^[A-G][#b]?(m|maj|min|dim|aug|sus|add|M)?\d*(sus\d*|add\d*|maj\d*|b\d+|#\d+)*(\/[A-G][#b]?)?\*?$/;
+function chordColor(name){ return NOTE_COLORS[String(name).trim().charAt(0).toUpperCase()] || '#feff0a'; }
+
+// Browser-side sanitizer (paste + before save). Same allow-list as lib/sanitize.js on the server.
+const NOTE_TAGS = {DIV:'div', P:'div', BR:'br', SPAN:'span', B:'b', STRONG:'b', U:'u', FONT:'span', I:'span', EM:'span'};
+const NOTE_DROP = /^(SCRIPT|STYLE|IFRAME|OBJECT|EMBED|SVG|MATH|TEMPLATE|NOSCRIPT|HEAD|TITLE|TEXTAREA|SELECT|BUTTON|META|LINK|IMG|VIDEO|AUDIO|INPUT)$/;
+function noteStyle(src, out){
+  const st = src.style; if(!st) return;
+  let col = st.color || (src.tagName === 'FONT' ? src.getAttribute('color') : '');
+  if(col){ const rc = readableColor(col); if(rc) out.style.color = rc; }
+  const fw = st.fontWeight; if(fw === 'normal' || fw === '400' || fw === 'lighter' || Number(fw) < 600) { if(fw) out.style.fontWeight = 'normal'; } else if(fw) out.style.fontWeight = 'bold';
+  const fs = st.fontSize; if(fs && /^\d{1,3}(\.\d+)?(px|pt)$/.test(fs)){ let px = parseFloat(fs) * (fs.endsWith('pt') ? 4/3 : 1); px = Math.max(10, Math.min(48, Math.round(px))); out.style.fontSize = px + 'px'; }
+  const td = st.textDecorationLine || st.textDecoration; if(td && /underline/.test(td)) out.style.textDecorationLine = 'underline';
 }
-function lineText(el){ return el.textContent.replace(/\n/g,''); }
-function isChordLine(el){
-  if(!el.querySelector || !el.querySelector('.ch')) return false;
-  const c = el.cloneNode(true); c.querySelectorAll('.ch').forEach(x => x.remove());
-  return /^[\s\u00a0|\-–x\d().,:*/]*$/.test(c.textContent);
-}
-// Clone the character range [start,end) of a line element, keeping its inline markup.
-function sliceLine(el, start, end){
-  const r = document.createRange();
-  const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-  let pos = 0, n, setS = false, setE = false;
-  while((n = tw.nextNode())){
-    const t = n.nodeValue.replace(/\n/g,''); const len = n.nodeValue.length;
-    if(!setS && start <= pos + t.length){ r.setStart(n, Math.min(len, start - pos)); setS = true; }
-    if(setS && end <= pos + t.length){ r.setEnd(n, Math.min(len, end - pos)); setE = true; break; }
-    pos += t.length;
+function cleanNoteNode(src, dst){
+  for(const n of Array.from(src.childNodes)){
+    if(n.nodeType === 3){ dst.appendChild(document.createTextNode(n.nodeValue)); continue; }
+    if(n.nodeType !== 1 || NOTE_DROP.test(n.tagName)) continue;
+    const tag = NOTE_TAGS[n.tagName];
+    if(!tag){ cleanNoteNode(n, dst); if(/^(H[1-6]|LI|TR|PRE|BLOCKQUOTE)$/.test(n.tagName)) dst.appendChild(document.createElement('br')); continue; }
+    const el = document.createElement(tag);
+    if(tag === 'br'){ dst.appendChild(el); continue; }
+    noteStyle(n, el);
+    if(n.classList && n.classList.contains('ch')) el.className = 'ch';
+    cleanNoteNode(n, el);
+    if(tag === 'span' && !el.getAttribute('style') && !el.className){ while(el.firstChild) dst.appendChild(el.firstChild); continue; }
+    dst.appendChild(el);
   }
-  if(!setS) return document.createDocumentFragment();
-  if(!setE) r.setEndAfter(el.lastChild);
-  return r.cloneContents();
 }
-function chordSpans(el){
-  // [startCol, endCol) of every chord in a chord line
-  const out = []; let pos = 0;
-  const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT); let n;
-  while((n = tw.nextNode())){
-    const t = n.nodeValue.replace(/\n/g,'');
-    if(n.parentElement && n.parentElement.closest('.ch')) out.push([pos, pos + t.length]);
-    pos += t.length;
-  }
-  return out;
+function sanitizeNoteHtml(html){
+  // DOMParser makes an inert document: nothing in it runs or loads.
+  const doc = new DOMParser().parseFromString('<body>' + String(html||'') + '</body>', 'text/html');
+  const out = document.createElement('div');
+  cleanNoteNode(doc.body, out);
+  return out.innerHTML;
 }
-function pickCut(lyric, chords, from, max){
-  const hard = from + max;
-  for(let c = hard; c > from + Math.floor(max * 0.4); c--){
-    const okLyric = !lyric || c >= lyric.length || /[\s\u00a0]/.test(lyric[c-1]) || /[\s\u00a0]/.test(lyric[c]);
-    const okChord = !chords.some(([s0,e0]) => s0 < c && c < e0);
-    if(okLyric && okChord) return c;
-  }
-  for(let c = hard; c > from + 1; c--) if(!chords.some(([s0,e0]) => s0 < c && c < e0)) return c;
-  return hard;
-}
-function wrapChart(box){
-  const cols = Math.max(12, Math.floor(chartInnerWidth(box) / measureCh(box)) - 1); // -1 for the continuation indent
-  const lines = chartLines(box);
-  for(let i = 0; i < lines.length; i++){
-    const a = lines[i];
-    if(!isSimpleLine(a)){ continue; }
-    const chordLine = isChordLine(a);
-    const nx = lines[i+1];
-    const b = chordLine && nx && nx.parentElement === a.parentElement && nx.previousElementSibling === a && isSimpleLine(nx) && !isChordLine(nx) && lineText(nx).trim() ? nx : null;
-    const aLen = lineText(a).length, bLen = b ? lineText(b).length : 0;
-    if(Math.max(aLen, bLen) <= cols){ if(b) i++; continue; }
-    const chords = chordLine ? chordSpans(a) : [];
-    const lyricTxt = b ? lineText(b) : (chordLine ? '' : lineText(a));
-    const total = Math.max(aLen, bLen);
-    const frag = document.createDocumentFragment();
-    let from = 0, first = true;
-    while(from < total){
-      let cut = total - from <= cols ? total : pickCut(lyricTxt, chords, from, cols);
-      const mk = (src) => { const d = src.cloneNode(false); const f = sliceLine(src, from, cut); f.querySelectorAll('*').forEach(e => { if(!e.textContent && !e.querySelector('br,img')) e.remove(); }); d.appendChild(f); if(!first) d.classList.add('wrapcont'); return d; };
-      frag.appendChild(mk(a));
-      if(b) frag.appendChild(mk(b));
-      from = cut;
-      // skip one leading space on continuation lines (in the lyric and the chord line together)
-      if(from < total && lyricTxt && /[\s\u00a0]/.test(lyricTxt[from] || '') && !chords.some(([s0]) => s0 === from)) from++;
-      first = false;
+// Old chord-over-lyric chart (HTML with .ch spans, or plain text) -> inline-chord note.
+function noteFromChart(chart){
+  if(!chart) return '';
+  const tmp = document.createElement('div');
+  if(/<[a-z][\s\S]*>/i.test(chart)) tmp.innerHTML = chart;
+  else tmp.innerHTML = chart.split('\n').map(l => {
+    const toks = l.trim().split(/\s+/).filter(Boolean);
+    const chordy = toks.length && toks.every(t => CHORD_RE.test(t) || /^[|x\d()-]+$/.test(t)) && toks.some(t => CHORD_RE.test(t));
+    return '<div>' + (chordy ? esc(l).replace(/(^|\s)([A-G][^\s]*)/g, (m, sp, t) => CHORD_RE.test(t) ? sp + '<span class="ch">' + t + '</span>' : m) : esc(l)) + '</div>';
+  }).join('');
+  tmp.querySelectorAll('script,style,iframe,img,object,embed').forEach(e => e.remove());
+  const lines = [];
+  const BLK = 'div,p,pre,li,h1,h2,h3,h4,h5,h6,ul,ol,table,section,article,blockquote';
+  // Lines = blocks without blocks inside; loose text/inline runs between blocks become their own line.
+  const walk = el => {
+    let run = null;
+    for(const c of Array.from(el.childNodes)){
+      const isBlk = c.nodeType === 1 && c.matches(BLK);
+      if(!isBlk){
+        if(c.nodeType === 3 && !run && !c.nodeValue.replace(/[\s]/g,'')) continue; // formatting newlines between blocks
+        if(!run){ run = document.createElement('div'); if(el.className) run.className = el.className; lines.push(run); }
+        if(c.nodeType === 1 && c.tagName === 'BR'){ if(!run.childNodes.length) run.appendChild(document.createElement('br')); run = null; continue; }
+        run.appendChild(c.cloneNode(true)); continue;
+      }
+      run = null;
+      if(c.querySelector(BLK)) walk(c); else lines.push(c);
     }
-    a.replaceWith(frag);
-    if(b){ b.remove(); i++; }
+  };
+  walk(tmp); if(!lines.length) lines.push(tmp);
+  const txt = el => el.textContent.replace(/\n/g,'');
+  const chordInfo = (el, strict) => { // [{col, name, color}] if the line is only chords + spaces (+ marks like * | x2 when not strict)
+    if(!el.querySelector('.ch')) return null;
+    const c = el.cloneNode(true); c.querySelectorAll('.ch').forEach(x => x.remove());
+    const rest = c.textContent.replace(/[\s\u00a0]/g,'');
+    if(rest && (strict || !/^[|*\-–x\d().,:\/%]*$/.test(rest))) return null;
+    const out = []; let pos = 0; const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT); let n;
+    while((n = tw.nextNode())){ const t = n.nodeValue.replace(/\n/g,''); const ch = n.parentElement.closest('.ch');
+      if(ch && t.trim()){ const inl = ch.style.color || (ch.querySelector('[style*=color]')||{style:{}}).style.color; out.push({col: pos + t.search(/\S/), name: t.trim(), color: (inl && readableColor(inl)) || chordColor(t)}); }
+      pos += t.length; }
+    return out;
+  };
+  const chordSpan = c => `<span class="ch" style="color: ${c.color}">${esc(c.name)})</span>`;
+  const outLines = [];
+  for(let i = 0; i < lines.length; i++){
+    const a = lines[i], ci = chordInfo(a), b = lines[i+1];
+    if(ci && chordInfo(a, true) && b && !b.querySelector('.ch') && txt(b).trim()){
+      // merge: put each chord right before the lyric character under it
+      const L = txt(b); let html = '', prev = 0;
+      for(const c of ci){
+        const col = Math.min(c.col, L.length);
+        html += esc(L.slice(prev, col)) + (col >= L.length && prev <= L.length && L.length && html ? ' ' : '') + chordSpan(c); prev = col;
+      }
+      html += esc(L.slice(prev));
+      const st = b.className === 'sec' ? ' style="color: #21cbff"' : '';
+      outLines.push(`<div${st}>${html || '<br>'}</div>`); i++; continue;
+    }
+    if(ci){ // chord-only line: keep its spacing, colour each chord
+      const L = txt(a); let html = '', prev = 0;
+      for(const c of ci){ html += esc(L.slice(prev, c.col)) + `<span class="ch" style="color: ${c.color}">${esc(c.name)}</span>`; prev = c.col + c.name.length; }
+      outLines.push(`<div>${html + esc(L.slice(prev)) || '<br>'}</div>`); continue;
+    }
+    const d = a.cloneNode(true);
+    d.querySelectorAll('.ch').forEach(x => { if(!x.style.color) x.style.color = chordColor(x.textContent); });
+    let inner = sanitizeNoteHtml(d.innerHTML);
+    if(!inner.replace(/<br>|&nbsp;|\s/g,'')) inner = '<br>';
+    const sec = a.classList.contains('sec') || /^\s*\[[^\]]+\]\s*$/.test(txt(a));
+    outLines.push(`<div${sec ? ' style="color: #21cbff"' : ''}>${inner}</div>`);
   }
-  // Anything still too wide (complex markup, tabs, one huge word): let it wrap naturally.
-  chartLines(box).forEach(l => { if(lineOver(l)) l.classList.add('softwrap'); });
-  box.classList.add('wrapped');
+  return outLines.join('');
 }
-function measureCh(box){
-  const probe = document.createElement('span');
-  probe.textContent = 'M'.repeat(50); probe.style.cssText = 'position:absolute;visibility:hidden;white-space:pre';
-  box.appendChild(probe); const w = probe.getBoundingClientRect().width / 50; probe.remove(); return w || 8;
+function songNoteHtml(song){ return song.noteHtml || noteFromChart(song.chartHtml || ''); }
+function applyChartType(box, size, spacing){
+  box.style.fontSize = size + 'px';
+  box.style.lineHeight = (Number(size) + Number(spacing)/2) + 'px';
 }
-// Lay the chart out for the current width. autoFit shrinks the font on narrow screens.
-function layoutChart(box, size, spacing, autoFit){
-  if(chartOrigHtml !== null){ box.innerHTML = chartOrigHtml; box.classList.remove('wrapped'); }
-  if(box.classList.contains('plain') && !box.querySelector('div')){
-    // plain-text chart: one div per line so it can be measured/wrapped like HTML charts
-    chartOrigHtml = null;
-    box.innerHTML = box.textContent.split('\n').map(l => '<div>' + (esc(l) || '&nbsp;') + '</div>').join('');
-  }
-  chartOrigHtml = box.innerHTML;
-  applyChartType(box, size, spacing);
-  // when the font is shrunk to fit, shrink the line spacing in proportion so chords stay snug over their lyric
-  if(autoFit && fitChart(box, size)){ const fs = parseFloat(box.style.fontSize); applyChartType(box, fs, spacing * fs / size); }
-  if(chartLocked && box.clientWidth < CHART_NARROW && chartOverflows(box)) wrapChart(box);
-}
-let chartResizeT = null;
-window.addEventListener('resize', () => { clearTimeout(chartResizeT); chartResizeT = setTimeout(() => {
-  const box = document.getElementById('chartBox'); if(!box || !currentSong || !chartLocked) return;
-  layoutChart(box, Number($('#tbSize').value), Number($('#tbSpacing').value), true);
-}, 200); });
 
 function songRow(s){
   const tags = (s.tags||[]).map(t=>`<span class="tag ${t.toLowerCase()==='bangers'?'banger':t.toLowerCase()==='country'?'country':''}">${esc(t)}</span>`).join('');
@@ -520,7 +503,6 @@ async function openSong(id, opts){
   try{
     const { song } = await api('/api/songs/'+id);
     currentSong = song;
-    const isHtml = /<[a-z][\s\S]*>/i.test(song.chartHtml||'');
     const chartList = songs.filter(s => s.hasChart || s.id === song.id).sort((a,b) => a.title.localeCompare(b.title));
     main.innerHTML = `
     <p><a href="#" id="backBtn" style="color:var(--gold);font-weight:700">&lsaquo; Back to ${opts.setlist ? 'setlist' : 'Song Board'}</a></p>
@@ -539,22 +521,23 @@ async function openSong(id, opts){
       <button class="btn ghost small-btn" id="lockBtn">&#128275; Unlock to edit</button></div>
     <div class="toolbar" id="toolbar">
       <select id="tbSong" title="Jump to another song's chart">${chartList.map(s => `<option value="${s.id}" ${s.id===song.id?'selected':''}>${esc(s.title)}${s.artist?' — '+esc(s.artist):''}</option>`).join('')}</select>
-      <span class="swatches edit-only">${SWATCHES.map(c => `<button class="sw" data-color="${c}" title="Colour selection ${c}" style="background:${c}"></button>`).join('')}</span>
-      <label class="tbl">Size <input type="range" id="tbSize" min="8" max="34" value="${song.chartSize||19}"><span id="tbSizeV">${song.chartSize||19}</span></label>
+      <span class="swatches edit-only">${SWATCHES.map(([c,n]) => `<button class="sw" data-color="${c}" title="Colour selection ${n}" aria-label="${n}" style="background:${c}"></button>`).join('')}</span>
+      <button class="tbb edit-only" id="tbBold" title="Bold on/off"><b>B</b></button>
+      <button class="tbb edit-only" id="tbUnder" title="Underline on/off"><u>U</u></button>
+      <select class="edit-only" id="tbFs" title="Size of the selected text"><option value="">Text size…</option><option value="15">Small</option><option value="0">Normal</option><option value="24">Large</option><option value="30">Huge</option></select>
       <button class="tbb edit-only" id="tbAll">Select all</button>
+      <label class="tbl">Size <input type="range" id="tbSize" min="12" max="34" value="${song.chartSize||19}"><span id="tbSizeV">${song.chartSize||19}</span></label>
       <label class="tbl">Spacing <input type="range" id="tbSpacing" min="0" max="40" value="${song.chartSpacing||19}"><span id="tbSpacingV">${song.chartSpacing||19}</span></label>
-      <button class="tbb edit-only" id="tbBold"><b>B</b> Bold selection</button>
       <button class="tbb" id="tbScroll">&#9654; Start</button>
       <label class="tbl">Speed <input type="range" id="tbSpeed" min="1" max="10" value="${autoSpeed}"><span id="tbSpeedV">${autoSpeed}</span></label>
     </div>
-    <div class="chartbox${isHtml||!song.chartHtml?'':' plain'}" id="chartBox" data-empty="No chart saved yet. Tap Unlock to edit, then paste or type it here.">${song.chartHtml ? (isHtml ? song.chartHtml : esc(song.chartHtml)) : ''}</div>
+    <div class="chartbox" id="chartBox" spellcheck="false" data-empty="No chart saved yet. Tap Unlock to edit, then paste or type it here.">${songNoteHtml(song)}</div>
     ${song.chartSource ? `<p class="small">Source: <a href="${esc(song.chartSource)}" target="_blank" rel="noopener">${esc(song.chartSource)}</a></p>` : ''}`;
     view = 'song';
     document.querySelectorAll('#topnav button').forEach(b => b.classList.remove('on'));
     const cb = $('#chartBox');
-    darkenChart(cb);
-    chartOrigHtml = null; chartLocked = true;
-    layoutChart(cb, song.chartSize||19, song.chartSpacing||19, true);
+    chartLocked = true;
+    applyChartType(cb, song.chartSize||19, song.chartSpacing||19);
     setChartLocked(true);
     wireChartToolbar(song, opts);
 
@@ -580,7 +563,7 @@ async function openSong(id, opts){
 }
 
 // ---- chart toolbar (replica parity) ----
-const SWATCHES = ['#feff0a','#8bff08','#fb0007','#21cbff','#fb00ff','#f5b942','#ff8a00','#f2ede6'];
+const SWATCHES = [['#ffffff','white'],['#feff0a','yellow'],['#fb0007','red'],['#21cbff','cyan'],['#2bff2b','green'],['#b5d900','olive'],['#ff8a00','orange'],['#fb00ff','magenta']];
 let chartLocked = true, chartDirty = false, autoTimer = null, autoSpeed = 3, savedRange = null;
 function applyChartType(box, size, spacing){
   box.style.fontSize = size + 'px';
@@ -589,7 +572,6 @@ function applyChartType(box, size, spacing){
 function setChartLocked(locked){
   chartLocked = locked;
   const box = $('#chartBox'); if(!box) return;
-  if(!locked && box.classList.contains('wrapped') && chartOrigHtml !== null){ box.innerHTML = chartOrigHtml; box.classList.remove('wrapped'); }
   box.contentEditable = locked ? 'false' : 'true';
   box.classList.toggle('editing', !locked);
   $('#toolbar').classList.toggle('locked', locked);
@@ -598,17 +580,15 @@ function setChartLocked(locked){
   $('#lockBtn').innerHTML = locked ? '&#128275; Unlock to edit' : '&#128190; Save &amp; lock';
 }
 function cleanChartHtml(box){
-  const c = box.cloneNode(true);
-  c.querySelectorAll('[data-kkc]').forEach(el => { const v = el.getAttribute('data-kkc'); el.style.color = v; if(!v) el.style.removeProperty('color'); el.removeAttribute('data-kkc'); });
-  c.querySelectorAll('[data-kkbg]').forEach(el => { el.style.backgroundColor = el.getAttribute('data-kkbg'); el.removeAttribute('data-kkbg'); });
-  c.querySelectorAll('[style=""]').forEach(el => el.removeAttribute('style'));
-  return c.classList.contains('plain') ? c.textContent : c.innerHTML;
+  let html = sanitizeNoteHtml(box.innerHTML);
+  if(!html.replace(/<[^>]+>|&nbsp;|\s/g,'')) html = '';
+  return html;
 }
 async function saveChart(song, extra){
   const box = $('#chartBox');
   const body = Object.assign({ chartSize: Number($('#tbSize').value), chartSpacing: Number($('#tbSpacing').value) }, extra || {});
   await api('/api/songs/'+song.id, {method:'PUT', body: JSON.stringify(body)});
-  if(body.chartHtml !== undefined){ song.chartHtml = body.chartHtml; const s = songs.find(x => x.id === song.id); if(s){ s.hasChart = !!body.chartHtml; } }
+  if(body.noteHtml !== undefined){ song.noteHtml = body.noteHtml; const s = songs.find(x => x.id === song.id); if(s){ s.hasChart = !!(body.noteHtml || song.chartHtml); } }
   song.chartSize = body.chartSize; song.chartSpacing = body.chartSpacing;
 }
 function stopAutoScroll(){
@@ -649,24 +629,45 @@ function wireChartToolbar(song, opts){
   $('#toolbar').querySelectorAll('button').forEach(b => { b.addEventListener('mousedown', e => e.preventDefault()); b.addEventListener('touchstart', () => restoreSel(), {passive:true}); });
   $('#tbSong').addEventListener('change', e => openSong(Number(e.target.value), {back: opts.back}));
   $('#lockBtn').addEventListener('click', async () => {
-    if(chartLocked){ setChartLocked(false); bringIntoView($('#toolbar')); try{ box.focus({preventScroll:true}); }catch(e){} toast('Unlocked — select text to colour or bold it'); return; }
+    if(chartLocked){ setChartLocked(false); bringIntoView($('#toolbar')); try{ box.focus({preventScroll:true}); }catch(e){} toast('Unlocked — select letters, words or lines to colour them'); return; }
     try{
-      await saveChart(song, { chartHtml: cleanChartHtml(box) });
+      const html = cleanChartHtml(box);
+      await saveChart(song, { noteHtml: html });
+      box.innerHTML = html;
       chartDirty = false; setChartLocked(true);
-      chartOrigHtml = null; layoutChart(box, Number($('#tbSize').value), Number($('#tbSpacing').value), true);
       toast('Saved, locked in');
     }catch(e){ toast('Save failed: ' + e.message, true); }
   });
   const fmt = (cmd, val) => {
     if(chartLocked){ toast('Tap Unlock to edit first', true); return; }
     if(!restoreSel()){ toast('Select some chart text first', true); return; }
-    try{ document.execCommand('styleWithCSS', false, true); }catch(e){}
-    document.execCommand(cmd, false, val);
+    if(cmd === 'fontSize'){
+      // <font size=7> from the browser -> a real pixel size (or back to normal)
+      try{ document.execCommand('styleWithCSS', false, false); }catch(e){}
+      document.execCommand('fontSize', false, '7');
+      box.querySelectorAll('font[size="7"]').forEach(f => { const sp = document.createElement('span'); if(Number(val)) sp.style.fontSize = val + 'px'; f.querySelectorAll('[style*="font-size"]').forEach(x => x.style.removeProperty('font-size')); while(f.firstChild) sp.appendChild(f.firstChild); f.replaceWith(sp); });
+      box.querySelectorAll('[style*="xxx-large"]').forEach(x => { if(Number(val)) x.style.fontSize = val + 'px'; else x.style.removeProperty('font-size'); });
+    } else {
+      try{ document.execCommand('styleWithCSS', false, true); }catch(e){}
+      document.execCommand(cmd, false, val);
+    }
     const sel = getSelection(); if(sel.rangeCount && !sel.isCollapsed) savedRange = sel.getRangeAt(0).cloneRange();
     chartDirty = true; setChartLocked(false);
   };
   $('#toolbar').querySelectorAll('.sw').forEach(b => b.addEventListener('click', () => fmt('foreColor', b.dataset.color)));
   $('#tbBold').addEventListener('click', () => fmt('bold'));
+  $('#tbUnder').addEventListener('click', () => fmt('underline'));
+  $('#tbFs').addEventListener('change', e => { const v = e.target.value; e.target.value = ''; if(v !== '') fmt('fontSize', v); });
+  // Paste: keep colours/bold/underline/size from Apple Notes or a web page, strip everything else.
+  box.addEventListener('paste', e => {
+    if(chartLocked) return;
+    const cd = e.clipboardData; if(!cd) return;
+    e.preventDefault();
+    const html = cd.getData('text/html'), text = cd.getData('text/plain');
+    if(html){ let clean = sanitizeNoteHtml(html.replace(/^[\s\S]*<body[^>]*>|<\/body>[\s\S]*$/gi, '')); document.execCommand('insertHTML', false, clean || esc(text)); }
+    else if(text) document.execCommand('insertText', false, text);
+    chartDirty = true; setChartLocked(false);
+  });
   $('#tbAll').addEventListener('click', () => {
     if(chartLocked){ toast('Tap Unlock to edit first', true); return; }
     const r = document.createRange(); r.selectNodeContents(box); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); savedRange = r.cloneRange();
@@ -675,7 +676,7 @@ function wireChartToolbar(song, opts){
   const typeChanged = () => {
     const sz = Number($('#tbSize').value), sp = Number($('#tbSpacing').value);
     $('#tbSizeV').textContent = sz; $('#tbSpacingV').textContent = sp;
-    if(chartLocked) layoutChart(box, sz, sp, false); else applyChartType(box, sz, sp);
+    applyChartType(box, sz, sp);
     clearTimeout(tSave);
     tSave = setTimeout(() => { saveChart(song).then(() => { if(chartLocked) toast('Chart size saved'); }).catch(e => toast('Save failed: ' + e.message, true)); }, 700);
   };
@@ -696,9 +697,7 @@ function renderSongEditor(song, focusId, opts){
     <label>Tags (comma-separated: 60s, 80s, Country, Medleys, Bangers...)</label><input type="text" id="eTags" value="${esc((song.tags||[]).join(', '))}">
     <label>Minimum tip (dollars, 0 = none)</label><input type="number" id="eMin" min="0" step="1" value="${(song.minTipCents||0)/100}">
     <label>Chart source link (optional)</label><input type="text" id="eSrc" value="${esc(song.chartSource||'')}">
-    <label>Chord chart (paste HTML or plain text — plain text is kept as-is)</label><textarea id="eChart" rows="12">${esc(song.chartHtml||'')}</textarea>
-    <label>Chart font size</label><input type="number" id="eSize" min="10" max="32" value="${song.chartSize||19}">
-    <label>Chart line spacing</label><input type="number" id="eSpacing" min="10" max="32" value="${song.chartSpacing||19}">
+    <p class="small" style="margin-top:12px">The chord chart is edited right in the black chart box below: tap <b>Unlock to edit</b>, type or paste (colours from Apple Notes come along), colour any letters, then <b>Save &amp; lock</b>.</p>
     <div class="btnrow">
       <button class="btn" id="saveSong">Save changes</button>
       <button class="btn ghost" id="cancelEdit">Cancel</button>
@@ -716,12 +715,10 @@ function renderSongEditor(song, focusId, opts){
   });
   $('#saveSong').addEventListener('click', async () => {
     const tags = $('#eTags').value.split(',').map(t=>t.trim()).filter(Boolean);
-    const chartHtml = $('#eChart').value;
     const body = {
       title: $('#eTitle').value, artist: $('#eArtist').value, tags,
       minTipCents: Math.round(Number($('#eMin').value||0)*100),
-      chartSource: $('#eSrc').value, chartHtml,
-      chartSize: Number($('#eSize').value||19), chartSpacing: Number($('#eSpacing').value||19)
+      chartSource: $('#eSrc').value
     };
     try{
       await api('/api/songs/'+song.id, {method:'PUT', body: JSON.stringify(body)});

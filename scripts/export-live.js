@@ -19,7 +19,7 @@ async function get(p) {
 }
 
 (async () => {
-  const { songs } = await get('/api/songs?visible=0');
+  const { songs } = await get('/api/songs?visible=0&full=1');
   const { setlists } = await get('/api/setlists');
   const { settings } = await get('/api/settings');
   const notes = await get('/api/notes');
@@ -30,7 +30,12 @@ async function get(p) {
     title: s.title, visible: !!s.visible,
   })).sort((a, b) => a.id - b.id);
   const charts = {};
-  for (const s of songs) if (s.chartHtml) charts[String(s.id)] = { title: s.title, artist: s.artist || '', chartHtml: s.chartHtml, size: s.chartSize || 19, spacing: s.chartSpacing || 19 };
+  for (const s of songs) {
+    if (!s.chartHtml && !s.noteHtml) continue;
+    charts[String(s.id)] = { title: s.title, artist: s.artist || '', chartHtml: s.chartHtml || '', size: s.chartSize || 19, spacing: s.chartSpacing || 19 };
+    if (s.noteHtml) charts[String(s.id)].noteHtml = s.noteHtml; // rich-text (Apple-Notes style) chart
+  }
+  if (Object.keys(charts).length < 100) throw new Error('refusing to export: only ' + Object.keys(charts).length + ' charts came back');
   const lists = setlists.map((l) => ({ date: l.date || '', id: l.id, name: l.name, status: l.status || 'saved', viewers: l.viewers !== false,
     songs: l.songs.map((e) => ({ artist: e.artist || '', off: !!e.off, title: e.title })) }));
   const st = Object.assign({}, settings); delete st.overlayExplodeAt;

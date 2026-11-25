@@ -3,6 +3,7 @@
 const path = require('path');
 const fs = require('fs');
 const { DatabaseSync } = require('node:sqlite');
+const { sanitizeNote } = require('./lib/sanitize');
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const DB_PATH = path.join(DATA_DIR, 'app.db');
@@ -17,7 +18,8 @@ CREATE TABLE IF NOT EXISTS songs (
   id INTEGER PRIMARY KEY, title TEXT NOT NULL, artist TEXT DEFAULT '',
   tags TEXT DEFAULT '[]', favorite INTEGER DEFAULT 0, visible INTEGER DEFAULT 1,
   hasChart INTEGER DEFAULT 0, chartSource TEXT DEFAULT '', minTipCents INTEGER DEFAULT 0,
-  chartHtml TEXT DEFAULT '', chartSize INTEGER DEFAULT 19, chartSpacing INTEGER DEFAULT 19
+  chartHtml TEXT DEFAULT '', chartSize INTEGER DEFAULT 19, chartSpacing INTEGER DEFAULT 19,
+  noteHtml TEXT DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS setlists (id INTEGER PRIMARY KEY, name TEXT NOT NULL, date TEXT DEFAULT '', status TEXT DEFAULT 'saved');
 CREATE TABLE IF NOT EXISTS setlist_entries (
@@ -57,6 +59,7 @@ if (fs.existsSync(chartsPath)) {
   }
 }
 
+try { db.exec("ALTER TABLE songs ADD COLUMN noteHtml TEXT DEFAULT ''"); } catch (e) { /* already there */ }
 db.exec('BEGIN');
 try {
   db.prepare('DELETE FROM setlist_entries').run();
@@ -65,8 +68,8 @@ try {
   db.prepare('DELETE FROM queue').run();
 
   const insSong = db.prepare(
-    `INSERT INTO songs (id, title, artist, tags, favorite, visible, hasChart, chartSource, minTipCents, chartHtml, chartSize, chartSpacing)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    `INSERT INTO songs (id, title, artist, tags, favorite, visible, hasChart, chartSource, minTipCents, chartHtml, chartSize, chartSpacing, noteHtml)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   for (const s of songs) {
     const c = charts[String(s.id)] || null;
     insSong.run(
@@ -76,7 +79,8 @@ try {
       Number(s.minTipCents || 0),
       c ? (c.chartHtml || '') : '',
       c ? Number(c.size || 19) : 19,
-      c ? Number(c.spacing || 19) : 19
+      c ? Number(c.spacing || 19) : 19,
+      c ? sanitizeNote(c.noteHtml || '') : ''
     );
   }
   const insList = db.prepare('INSERT INTO setlists (id, name, date, status) VALUES (?, ?, ?, ?)');
