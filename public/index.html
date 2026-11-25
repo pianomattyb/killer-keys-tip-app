@@ -58,6 +58,8 @@ textarea{min-height:120px;font-family:ui-monospace,Menlo,Consolas,monospace}
 .btnrow{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
 .chartbox{background:#000;color:#fff;border:1px solid #222;border-radius:10px;padding:16px 18px;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Arial,sans-serif;font-weight:700;font-size:19px;line-height:1.4;white-space:pre-wrap;overflow-wrap:anywhere;word-break:normal;-webkit-user-select:text;user-select:text;tab-size:4;-webkit-text-size-adjust:100%}
 .chartbox div,.chartbox p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;background:transparent}
+.notebar{position:static;margin-bottom:8px}
+#aNote{min-height:180px}
 .chartbox:empty::before{content:attr(data-empty);color:var(--muted);font-weight:600}
 .chartbox.editing{outline:2px dashed var(--gold);outline-offset:3px;cursor:text;caret-color:#feff0a}
 .chartbox ::selection{background:rgba(80,140,255,.55)}
@@ -475,6 +477,49 @@ function noteFromChart(chart){
   }
   return outLines.join('');
 }
+
+// Shared paste: HTML (Apple Notes, web) is sanitized and keeps colours; plain text is inserted
+// as typed, except an old chord-over-lyric chart, which is turned into inline coloured chords.
+function looksLikeChordChart(text){
+  const lines = String(text).split('\n'); let n = 0;
+  for(const l of lines){ const t = l.trim().split(/\s+/).filter(Boolean); if(t.length && t.every(x => CHORD_RE.test(x) || /^[|x\d()-]+$/.test(x)) && t.some(x => CHORD_RE.test(x))) n++; }
+  return n >= 2;
+}
+function notePasteInsert(cd){
+  const html = cd.getData('text/html'), text = cd.getData('text/plain');
+  if(html){ const clean = sanitizeNoteHtml(html.replace(/^[\s\S]*<body[^>]*>|<\/body>[\s\S]*$/gi, '')); document.execCommand('insertHTML', false, clean || esc(text)); }
+  else if(text && looksLikeChordChart(text)) document.execCommand('insertHTML', false, noteFromChart(text));
+  else if(text) document.execCommand('insertText', false, text);
+}
+// A small stand-alone note editor (used by + Add song): swatches, B, U, size, sanitized paste.
+function noteToolbarHTML(prefix){
+  return `<div class="toolbar notebar" id="${prefix}Bar">
+    <span class="swatches">${SWATCHES.map(([c,n]) => `<button type="button" class="sw" data-color="${c}" title="Colour selection ${n}" aria-label="${n}" style="background:${c}"></button>`).join('')}</span>
+    <button type="button" class="tbb" data-fmt="bold" title="Bold on/off"><b>B</b></button>
+    <button type="button" class="tbb" data-fmt="underline" title="Underline on/off"><u>U</u></button>
+    <select data-fs title="Size of the selected text"><option value="">Text size…</option><option value="15">Small</option><option value="0">Normal</option><option value="24">Large</option><option value="30">Huge</option></select>
+  </div>`;
+}
+function wireNoteEditor(box, bar){
+  let range = null;
+  const inBox = r => r && box.contains(r.commonAncestorContainer);
+  document.addEventListener('selectionchange', () => { const sel = getSelection(); if(sel.rangeCount && !sel.isCollapsed && inBox(sel.getRangeAt(0))) range = sel.getRangeAt(0).cloneRange(); });
+  const restore = () => { const sel = getSelection(); if(sel.rangeCount && !sel.isCollapsed && inBox(sel.getRangeAt(0))) return true; if(range){ sel.removeAllRanges(); sel.addRange(range); return true; } return false; };
+  const fmt = (cmd, val) => {
+    if(!restore()){ toast('Select some chart text first', true); return; }
+    if(cmd === 'fontSize'){
+      try{ document.execCommand('styleWithCSS', false, false); }catch(e){}
+      document.execCommand('fontSize', false, '7');
+      box.querySelectorAll('font[size="7"]').forEach(f => { const sp = document.createElement('span'); if(Number(val)) sp.style.fontSize = val + 'px'; while(f.firstChild) sp.appendChild(f.firstChild); f.replaceWith(sp); });
+    } else { try{ document.execCommand('styleWithCSS', false, true); }catch(e){} document.execCommand(cmd, false, val); }
+    const sel = getSelection(); if(sel.rangeCount && !sel.isCollapsed) range = sel.getRangeAt(0).cloneRange();
+  };
+  bar.querySelectorAll('button').forEach(b => { b.addEventListener('mousedown', e => e.preventDefault()); b.addEventListener('touchstart', () => restore(), {passive:true}); });
+  bar.querySelectorAll('.sw').forEach(b => b.addEventListener('click', () => fmt('foreColor', b.dataset.color)));
+  bar.querySelectorAll('[data-fmt]').forEach(b => b.addEventListener('click', () => fmt(b.dataset.fmt)));
+  const fs = bar.querySelector('[data-fs]'); fs.addEventListener('change', () => { const v = fs.value; fs.value = ''; if(v !== '') fmt('fontSize', v); });
+  box.addEventListener('paste', e => { const cd = e.clipboardData; if(!cd) return; e.preventDefault(); notePasteInsert(cd); });
+}
 function songNoteHtml(song){ return song.noteHtml || noteFromChart(song.chartHtml || ''); }
 function applyChartType(box, size, spacing){
   box.style.fontSize = size + 'px';
@@ -591,28 +636,57 @@ async function saveChart(song, extra){
   if(body.noteHtml !== undefined){ song.noteHtml = body.noteHtml; const s = songs.find(x => x.id === song.id); if(s){ s.hasChart = !!(body.noteHtml || song.chartHtml); } }
   song.chartSize = body.chartSize; song.chartSpacing = body.chartSpacing;
 }
-function stopAutoScroll(){
+// ---- auto-scroll: a gentle, steady glide inside the chart box ----
+// Speed 1..10 maps to 3..60 px per second on an exponential curve (default 3 = ~6.5 px/s,
+// about one lyric line every 4 seconds). Start: one smooth page scroll brings the toolbar
+// to the top of what you can see, the box is sized to the rest, then the speed eases in
+// over ~1.2 s and moves with sub-pixel steps. Touching, wheeling or dragging the chart
+// pauses it; Start resumes from where you are. Stops at the end.
+const AUTO_MIN = 3, AUTO_MAX = 60;
+function autoPxPerSec(s){ return AUTO_MIN * Math.pow(AUTO_MAX / AUTO_MIN, (Number(s) - 1) / 9); }
+try{ const v = Number(localStorage.getItem('kkAutoSpeed')); if(v >= 1 && v <= 10) autoSpeed = v; }catch(e){}
+let autoPrep = null;
+function stopAutoScroll(msg){
   if(autoTimer){ cancelAnimationFrame(autoTimer); autoTimer = null; }
+  if(autoPrep){ clearTimeout(autoPrep); autoPrep = null; }
   const b = document.getElementById('tbScroll'); if(b) b.innerHTML = '&#9654; Start';
+  if(msg) toast(msg);
 }
+function autoUserInterrupt(){ if(autoTimer || autoPrep) stopAutoScroll('Auto-scroll paused — tap Start to carry on'); }
 function startAutoScroll(){
   const box = $('#chartBox'); if(!box) return;
-  // Scroll inside the chart box, sized to the part of the app the visitor can
-  // actually see (works the same inside the Wix frame and on its own).
   const tb = $('#toolbar');
-  box.style.maxHeight = Math.max(220, (visBottom - visTop) - (tb ? tb.offsetHeight : 0) - 40) + 'px';
-  box.style.overflowY = 'auto';
-  bringIntoView(tb || box);
-  let last = performance.now(), acc = 0;
-  const step = now => {
-    const dt = (now - last) / 1000; last = now;
-    acc += dt * autoSpeed * 9;
-    if(acc >= 1){ const px = Math.floor(acc); acc -= px; box.scrollTop += px; }
-    if(box.scrollTop + box.clientHeight >= box.scrollHeight - 1){ stopAutoScroll(); toast('End of chart'); return; }
-    autoTimer = requestAnimationFrame(step);
-  };
-  autoTimer = requestAnimationFrame(step);
   $('#tbScroll').innerHTML = '&#9208; Stop';
+  // 1) size the box to the visible area below the toolbar (only if it is taller than that)
+  const visH = Math.max(240, (visBottom - visTop) - (tb ? tb.offsetHeight : 0) - 24);
+  if(box.scrollHeight > visH + 4){ box.style.maxHeight = visH + 'px'; box.style.overflowY = 'auto'; }
+  // 2) one smooth page scroll so the toolbar sits at the top of the visible area
+  const anchor = tb || box;
+  const r = anchor.getBoundingClientRect();
+  const want = Math.max(0, window.scrollY + r.top - visTop - 8);
+  const dist = Math.abs(want - window.scrollY);
+  if(dist > 6){
+    const need = want + window.innerHeight - document.documentElement.scrollHeight;
+    if(need > 0) main.style.paddingBottom = (80 + need) + 'px';
+    try{ window.scrollTo({top: want, behavior: 'smooth'}); }catch(e){ window.scrollTo(0, want); }
+  }
+  const delay = dist > 6 ? Math.min(700, 250 + dist * 0.6) : 0;
+  autoPrep = setTimeout(() => {
+    autoPrep = null;
+    let pos = box.scrollTop, last = performance.now(), t0 = last;
+    const RAMP = 1200; // ms ease-in
+    const step = now => {
+      const dt = Math.min(0.1, (now - last) / 1000); last = now;
+      const k = Math.min(1, (now - t0) / RAMP), ease = k * k * (3 - 2 * k); // smoothstep
+      // if something else moved the box (user drag), follow it instead of snapping back
+      if(Math.abs(box.scrollTop - pos) > 2) pos = box.scrollTop;
+      pos += autoPxPerSec(autoSpeed) * ease * dt;
+      box.scrollTop = pos;
+      if(box.scrollTop + box.clientHeight >= box.scrollHeight - 1){ stopAutoScroll('End of chart'); return; }
+      autoTimer = requestAnimationFrame(step);
+    };
+    autoTimer = requestAnimationFrame(step);
+  }, delay);
 }
 function inChart(range){ const box = $('#chartBox'); return range && box && box.contains(range.commonAncestorContainer); }
 function restoreSel(){
@@ -663,9 +737,7 @@ function wireChartToolbar(song, opts){
     if(chartLocked) return;
     const cd = e.clipboardData; if(!cd) return;
     e.preventDefault();
-    const html = cd.getData('text/html'), text = cd.getData('text/plain');
-    if(html){ let clean = sanitizeNoteHtml(html.replace(/^[\s\S]*<body[^>]*>|<\/body>[\s\S]*$/gi, '')); document.execCommand('insertHTML', false, clean || esc(text)); }
-    else if(text) document.execCommand('insertText', false, text);
+    notePasteInsert(cd);
     chartDirty = true; setChartLocked(false);
   });
   $('#tbAll').addEventListener('click', () => {
@@ -682,8 +754,9 @@ function wireChartToolbar(song, opts){
   };
   $('#tbSize').addEventListener('input', typeChanged);
   $('#tbSpacing').addEventListener('input', typeChanged);
-  $('#tbSpeed').addEventListener('input', e => { autoSpeed = Number(e.target.value); $('#tbSpeedV').textContent = autoSpeed; });
-  $('#tbScroll').addEventListener('click', () => { if(autoTimer) stopAutoScroll(); else startAutoScroll(); });
+  $('#tbSpeed').addEventListener('input', e => { autoSpeed = Number(e.target.value); $('#tbSpeedV').textContent = autoSpeed; try{ localStorage.setItem('kkAutoSpeed', autoSpeed); }catch(_){} });
+  ['wheel','touchstart','mousedown','keydown'].forEach(ev => box.addEventListener(ev, autoUserInterrupt, {passive:true}));
+  $('#tbScroll').addEventListener('click', () => { if(autoTimer || autoPrep) stopAutoScroll(); else startAutoScroll(); });
 }
 
 function renderSongEditor(song, focusId, opts){
@@ -735,9 +808,12 @@ function renderAdd(){
     <label>Artist</label><input type="text" id="aArtist" placeholder="Artist">
     <label>Tags (comma-separated)</label><input type="text" id="aTags" placeholder="80s, Bangers">
     <label>Minimum tip (dollars, 0 = none)</label><input type="number" id="aMin" min="0" step="1" value="0">
-    <label>Chart (optional — paste chart HTML or plain text)</label><textarea id="aChart" rows="8" placeholder="Paste the chord chart here"></textarea>
+    <label>Chord chart (optional) — type or paste from Apple Notes; select letters to colour them</label>
+    ${noteToolbarHTML('a')}
+    <div class="chartbox editing" id="aNote" contenteditable="true" spellcheck="false" data-empty="Type or paste the chord chart here"></div>
     <div class="btnrow"><button class="btn" id="addSave">Add song</button><button class="btn ghost" id="addCancel">Cancel</button></div>
   </div>`;
+  wireNoteEditor($('#aNote'), $('#aBar'));
   $('#addCancel').addEventListener('click', () => { view='board'; renderBoard(); });
   $('#addSave').addEventListener('click', async () => {
     const title = $('#aTitle').value.trim();
@@ -746,7 +822,7 @@ function renderAdd(){
       title, artist: $('#aArtist').value.trim(),
       tags: $('#aTags').value.split(',').map(t=>t.trim()).filter(Boolean),
       minTipCents: Math.round(Number($('#aMin').value||0)*100),
-      chartHtml: $('#aChart').value
+      noteHtml: cleanChartHtml($('#aNote'))
     };
     try{
       const { song } = await api('/api/songs', {method:'POST', body: JSON.stringify(body)});
@@ -777,7 +853,7 @@ function setlistSongsHTML(sl){
   <div class="slsongs" id="slList-${sl.id}">${sl.songs.map((e,i) => {
     const cs = chartFor(e);
     return `<div class="setlist-row slrow${e.off?' is-off':''}" data-row="${sl.id}-${i}">
-      <div style="min-width:0;flex:1"><div class="n">${i+1}. ${esc(e.title)}</div><div class="small">${esc(e.artist||'')}</div></div>
+      <div style="min-width:0;flex:1;cursor:pointer" data-openrow="${sl.id}-${i}" title="Open ${esc(e.title)}"><div class="n">${esc(e.title)}</div><div class="small">${esc(e.artist||'')}</div></div>
       <span class="c">
         ${cs && cs.hasChart ? `<button class="iconbtn" data-chart="${sl.id}-${i}" title="Open chart">&#127926;</button>` : `<span class="iconbtn dim" title="No chart yet">&#127926;</span>`}
         <button class="tog ${e.off?'':'on'}" data-off="${sl.id}-${i}" title="Song on/off">${e.off?'OFF':'ON'}</button>
@@ -841,6 +917,7 @@ async function renderSetlists(){
   };
   main.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => openEntry(byId(b.dataset.sl), Number(b.dataset.idx))));
   main.querySelectorAll('[data-chart]').forEach(b => b.addEventListener('click', () => { const [sl, i] = split(b.dataset.chart); openEntry(sl, i); }));
+  main.querySelectorAll('[data-openrow]').forEach(b => b.addEventListener('click', () => { const [sl, i] = split(b.dataset.openrow); openEntry(sl, i); }));
   main.querySelectorAll('.slQ').forEach(inp => inp.addEventListener('input', e => {
     const q = e.target.value.toLowerCase();
     document.querySelectorAll('#slList-'+inp.dataset.q+' .setlist-row').forEach(row => { row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none'; });
