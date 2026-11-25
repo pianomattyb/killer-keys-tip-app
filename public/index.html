@@ -61,21 +61,30 @@ textarea{min-height:120px;font-family:ui-monospace,Menlo,Consolas,monospace}
 .setlist-row .c{color:var(--muted);font-size:13px;margin-left:auto}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--gold);color:#000;font-weight:800;padding:10px 20px;border-radius:99px;display:none;z-index:50}
 .small{color:var(--muted);font-size:13px}
+.syncrow{display:flex;justify-content:flex-end;align-items:center;gap:10px;color:var(--muted);font-size:13px;margin-bottom:2px}
+.btn.sync{background:var(--green);color:#000;padding:8px 16px;font-size:13px}
 hr{border:0;border-top:1px solid var(--line);margin:18px 0}
 @media (max-width:640px){h1{font-size:32px}.logo{font-size:18px}}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 </head>
 <body>
 <header>
   <div class="logo">THE <b>KILLER KEYS</b></div>
   <div class="sub">Tip &amp; Request App</div>
   <div class="badge">REQUEST BOARD &middot; FREE</div>
+  <div class="badge">PAYMENTS: LIVE &middot; STRIPE</div>
 </header>
 <nav id="topnav">
   <button data-view="board" class="on">Song Board</button>
+  <button data-view="qr">QR code</button>
   <button data-view="add" class="gold">+ Add song</button>
+  <button data-view="import" class="gold">+ Smart Import</button>
   <button data-view="queue">Performer Queue</button>
+  <button data-view="maker">Setlist Maker</button>
   <button data-view="setlists">Setlists</button>
+  <button data-view="mod">Off-Site Mod</button>
+  <button data-view="overlay">Stream Overlay</button>
   <button data-view="notes">Performance Notes</button>
 </nav>
 <main id="main"><p class="lede" style="padding:30px 0">Loading the song board…</p></main>
@@ -94,8 +103,11 @@ let searchQ = '';
 let performerMode = false;
 let currentSong = null;
 let currentSetlist = null;
+let makerSetlist = null;
+let overlayTimer = null;
+let lastSync = null;
 
-const TAGS = ['Favorites','All','60s','70s','80s','90s','2000s','2010s','2020s','Country','Medleys','Bangers','Most requested'];
+const TAGS = ['Favorites','All','60s','70s','80s','90s','2000s','2010s','2020s','Country','Medleys','Bangers','Most requested','Elton John','Billy Joel'];
 function toast(msg){ toastEl.textContent = msg; toastEl.style.display='block'; setTimeout(()=>toastEl.style.display='none', 2200); }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 async function api(path, opts){
@@ -114,6 +126,8 @@ async function api(path, opts){
 function visibleSongs(){
   let list = songs.filter(s => s.visible);
   if(filterTag === 'Favorites') list = list.filter(s => s.favorite);
+  else if(filterTag === 'Elton John') list = list.filter(s => (s.artist||'').toLowerCase().includes('elton john'));
+  else if(filterTag === 'Billy Joel') list = list.filter(s => (s.artist||'').toLowerCase().includes('billy joel'));
   else if(filterTag !== 'All' && filterTag !== 'Most requested') list = list.filter(s => (s.tags||[]).includes(filterTag));
   if(searchQ){
     const q = searchQ.toLowerCase();
@@ -124,8 +138,11 @@ function visibleSongs(){
 
 function renderBoard(){
   const list = visibleSongs();
+  const boardCount = songs.filter(s=>s.visible).length;
   main.innerHTML = `
+    <div class="syncrow"><span id="syncStamp">Last synced ${fmtSync(lastSync)}</span><button class="btn sync" id="syncBtn">Sync now</button></div>
     <h1>REQUEST A <span>$ONG</span></h1>
+    <p class="lede">Requests are free but requests with tips get played first! Tips start at $5. A few signature numbers carry their own minimum, shown on the song. <b>${boardCount} songs on the board tonight.</b> The board opens on the band's <b>&#9733; Favorites</b> — tap <b>All</b> or any era to browse everything.</p>
     <div class="search"><input id="q" type="text" placeholder="Search songs or artists..." value="${esc(searchQ)}"><button id="dictBtn" title="Dictation">&#127908; Dictate</button></div>
     <div class="filters">${TAGS.map(t=>`<button data-tag="${t}" class="${filterTag===t?'on':''}">${t==='Favorites'?'&#9733; ':''}${t}</button>`).join('')}</div>
     <div id="list">${list.length ? list.map(songRow).join('') : '<div class="empty">No songs match. Try another search or filter.</div>'}</div>`;
@@ -135,6 +152,7 @@ function renderBoard(){
   document.querySelectorAll('.song').forEach(el => el.addEventListener('click', () => openSong(Number(el.dataset.id))));
   const d = $('#dictBtn');
   if(d) d.addEventListener('click', () => toast('Dictation: tap the mic on your keyboard to dictate a search.'));
+  $('#syncBtn').addEventListener('click', syncNow);
 }
 function renderListOnly(){
   const list = visibleSongs();
@@ -153,6 +171,7 @@ function songRow(s){
     </div>
     ${s.hasChart?'<span title="Has chart" style="font-size:20px">&#127926;</span>':''}
     ${min}
+    <span title="Requestable" style="font-size:18px">&#127908;</span>
     <span class="chev">&rsaquo;</span>
   </div>`;
 }
@@ -328,18 +347,201 @@ async function renderNotes(){
   });
 }
 
+function fmtSync(d){ return d ? d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',second:'2-digit'}) : '—'; }
+
+async function syncNow(){
+  await loadSongs();
+  try{ const d = await api('/api/queue'); queue = d.queue || []; }catch(e){}
+  try{ const d = await api('/api/setlists'); setlists = d.setlists || []; }catch(e){}
+  try{ const d = await api('/api/notes'); notes = d.body || ''; }catch(e){}
+  lastSync = new Date();
+  const el = $('#syncStamp');
+  if(el) el.textContent = 'Last synced ' + fmtSync(lastSync);
+  if(view === 'board') renderBoard();
+  else toast('Synced at ' + fmtSync(lastSync));
+}
+
+function renderQR(){
+  const url = 'https://www.pianomattyb.com/song-board';
+  main.innerHTML = `
+  <h1 style="font-size:32px">QR CODE</h1>
+  <p class="lede">Scan to open the Song Board</p>
+  <div class="panel" style="text-align:center">
+    <div id="qrbox" style="display:inline-block;background:#fff;padding:16px;border-radius:12px;min-width:200px;min-height:200px"></div>
+    <p style="margin-top:14px;word-break:break-all"><a href="${url}" target="_blank" rel="noopener">${url}</a></p>
+  </div>`;
+  const box = $('#qrbox');
+  try{
+    if(typeof qrcode === 'function'){
+      const qr = qrcode(0, 'M');
+      qr.addData(url);
+      qr.make();
+      box.innerHTML = qr.createImgTag(6, 0);
+    } else {
+      box.innerHTML = '<p style="color:#000;font-weight:700">QR code could not load.<br>Open the link below instead.</p>';
+    }
+  }catch(e){
+    box.innerHTML = '<p style="color:#000;font-weight:700">QR code could not load.<br>Open the link below instead.</p>';
+  }
+}
+
+function renderImport(){
+  main.innerHTML = `
+  <h1 style="font-size:32px">SMART IMPORT</h1>
+  <p class="lede">One song per line: <b>Title - Artist</b> (or <b>Title | Artist</b>). Songs already on the board are skipped.</p>
+  <div class="panel">
+    <label>Paste songs</label>
+    <textarea id="impText" rows="14" placeholder="500 Miles - The Proclaimers&#10;9 To 5 - Dolly Parton"></textarea>
+    <div class="btnrow"><button class="btn" id="impGo">Import</button></div>
+    <div id="impResult" style="margin-top:14px"></div>
+  </div>`;
+  $('#impGo').addEventListener('click', async () => {
+    const lines = $('#impText').value.split('\n');
+    const seen = new Set(songs.map(s => (s.title+'\u0000'+(s.artist||'')).toLowerCase()));
+    let added = 0, skipped = 0;
+    for(const raw of lines){
+      const line = raw.trim();
+      if(!line) continue;
+      let title = line, artist = '';
+      const pipe = line.indexOf('|');
+      if(pipe >= 0){ title = line.slice(0, pipe).trim(); artist = line.slice(pipe+1).trim(); }
+      else {
+        const m = line.match(/^(.+?)\s+-\s+(.+)$/);
+        if(m){ title = m[1].trim(); artist = m[2].trim(); }
+      }
+      if(!title){ skipped++; continue; }
+      const key = (title+'\u0000'+artist).toLowerCase();
+      if(seen.has(key)){ skipped++; continue; }
+      try{
+        await api('/api/songs', {method:'POST', body: JSON.stringify({title, artist, tags: [], minTipCents: 0})});
+        seen.add(key); added++;
+      }catch(e){ skipped++; }
+    }
+    await loadSongs();
+    $('#impResult').innerHTML = '<p><b>Added '+added+' songs, skipped '+skipped+' already on the board</b></p>';
+  });
+}
+
+async function renderMaker(){
+  try{ const d = await api('/api/setlists'); setlists = d.setlists || []; }catch(e){ setlists = []; }
+  if(makerSetlist){
+    const sl = setlists.find(s => s.id === makerSetlist);
+    if(!sl){ makerSetlist = null; return renderMaker(); }
+    main.innerHTML = `
+    <p><a href="#" id="mkBack" style="color:var(--gold);font-weight:700">&lsaquo; Back to Setlist Maker</a></p>
+    <h1 style="font-size:32px">${esc(sl.name)}</h1>
+    <p class="lede">${sl.songs.length} songs</p>
+    <div id="mkList">${sl.songs.map((e,i)=>`<div class="setlist-row"><div><div class="n">${i+1}. ${esc(e.title)}</div><div class="small">${esc(e.artist||'')}</div></div><span class="c"><button class="btn ghost" data-rm="${i}">Remove</button></span></div>`).join('') || '<p class="empty">No songs in this setlist yet.</p>'}</div>
+    <div class="panel" style="margin-top:18px"><h2>Add a song</h2>
+      <input type="text" id="mkQ" placeholder="Search the catalogue...">
+      <div id="mkResults" style="margin-top:10px"></div>
+    </div>`;
+    $('#mkBack').addEventListener('click', e => { e.preventDefault(); makerSetlist = null; renderMaker(); });
+    main.querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', async () => {
+      const remaining = sl.songs.filter((_,i)=>i!==Number(b.dataset.rm));
+      await api('/api/setlists/'+sl.id, {method:'PUT', body: JSON.stringify({songs: remaining})});
+      toast('Removed from setlist'); renderMaker();
+    }));
+    $('#mkQ').addEventListener('input', e => {
+      const q = e.target.value.trim().toLowerCase();
+      const box = $('#mkResults');
+      if(!q){ box.innerHTML=''; return; }
+      const hits = songs.filter(s => s.title.toLowerCase().includes(q) || (s.artist||'').toLowerCase().includes(q)).slice(0,8);
+      box.innerHTML = hits.map(s=>`<div class="setlist-row"><div><div class="n">${esc(s.title)}</div><div class="small">${esc(s.artist||'')}</div></div><span class="c"><button class="btn" data-add="${s.id}">Add</button></span></div>`).join('') || '<p class="empty">No matches.</p>';
+      box.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', async () => {
+        const s = songs.find(x => x.id === Number(b.dataset.add));
+        if(!s) return;
+        const next = sl.songs.concat([{title: s.title, artist: s.artist||'', off: 0}]);
+        await api('/api/setlists/'+sl.id, {method:'PUT', body: JSON.stringify({songs: next})});
+        toast('Added to setlist'); renderMaker();
+      }));
+    });
+    return;
+  }
+  main.innerHTML = `
+  <h1 style="font-size:32px">SETLIST MAKER</h1>
+  ${setlists.map(s=>`<div class="setlist-row" data-mk="${s.id}"><div><div class="n">${esc(s.name)}</div><div class="small">${esc(s.date||'')}</div></div><span class="c">${s.songs.length} songs</span></div>`).join('') || '<p class="empty">No setlists yet.</p>'}
+  <div class="panel" style="margin-top:18px"><h2>New setlist</h2>
+    <label>Name</label><input type="text" id="mkName" placeholder="Setlist name">
+    <div class="btnrow"><button class="btn" id="mkCreate">Create setlist</button></div>
+  </div>`;
+  main.querySelectorAll('[data-mk]').forEach(el => el.addEventListener('click', () => { makerSetlist = Number(el.dataset.mk); renderMaker(); }));
+  $('#mkCreate').addEventListener('click', async () => {
+    const name = $('#mkName').value.trim(); if(!name){ toast('Name is required'); return; }
+    await api('/api/setlists', {method:'POST', body: JSON.stringify({name, songs: []})});
+    toast('Setlist created'); renderMaker();
+  });
+}
+
+async function renderMod(){
+  let q = [];
+  try{ const d = await api('/api/queue'); q = d.queue || []; }catch(e){ q = []; }
+  main.innerHTML = `
+  <h1 style="font-size:32px">OFF-SITE MOD</h1>
+  <p class="lede">Review incoming requests. Approve to accept a request for the show; Remove drops it from the queue.</p>
+  <div class="btnrow"><button class="btn ghost" id="modRefresh">Refresh</button></div>
+  <div style="margin-top:16px">${q.length ? q.map(item=>{
+    const s = item.songId ? songs.find(x => x.id === item.songId) : null;
+    const tip = item.tipCents ? '$'+(item.tipCents/100).toFixed(2) : '';
+    return `<div class="setlist-row"><div><div class="n">${esc(item.songTitle)}</div><div class="small">${esc(s ? (s.artist||'') : '')}${item.requester ? ' &middot; '+esc(item.requester) : ''}${tip ? ' &middot; Tip '+tip : ''}</div></div>
+    <span class="c"><button class="btn" data-appr="${item.id}">Approve</button> <button class="btn ghost" data-del="${item.id}">Remove</button></span></div>`;
+  }).join('') : '<p class="empty">Queue is empty.</p>'}</div>`;
+  $('#modRefresh').addEventListener('click', renderMod);
+  main.querySelectorAll('[data-appr]').forEach(b => b.addEventListener('click', async () => { await api('/api/queue/'+b.dataset.appr+'/play', {method:'POST'}); toast('Approved'); renderMod(); }));
+  main.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async () => { await api('/api/queue/'+b.dataset.del+'/delete', {method:'POST'}); renderMod(); }));
+}
+
+function overlayHTML(q){
+  if(!q.length) return '<p class="empty" style="font-size:22px">No requests in the queue.</p>';
+  const first = q[0];
+  const s = first.songId ? songs.find(x => x.id === first.songId) : null;
+  const next = q.slice(1,4);
+  return `
+  <div style="text-align:center;padding:40px 10px 10px">
+    <div class="small" style="letter-spacing:.2em">NOW PLAYING / NEXT UP</div>
+    <div style="font-size:64px;font-weight:900;line-height:1.05;margin:18px 0 8px">${esc(first.songTitle)}</div>
+    <div style="font-size:32px;color:var(--gold);font-weight:800">${esc(s ? (s.artist||'') : '')}</div>
+  </div>
+  ${next.length ? '<hr><h2 style="font-size:22px">Up next</h2>' + next.map((item,i)=>{
+    const ns = item.songId ? songs.find(x => x.id === item.songId) : null;
+    return `<div style="font-size:24px;padding:8px 0"><b>${i+2}.</b> ${esc(item.songTitle)} <span style="color:var(--muted);font-size:20px">${esc(ns ? (ns.artist||'') : '')}</span></div>`;
+  }).join('') : ''}`;
+}
+async function fillOverlay(){
+  const body = $('#ovBody'); if(!body) return;
+  try{ const d = await api('/api/queue'); body.innerHTML = overlayHTML(d.queue || []); }
+  catch(e){ body.innerHTML = '<p class="empty">Could not load the queue.</p>'; }
+}
+function renderOverlay(){
+  main.innerHTML = `
+  <p><a href="#" id="ovBack" style="color:var(--gold);font-weight:700">&lsaquo; Back to board</a></p>
+  <div id="ovBody"><p class="empty">Loading queue…</p></div>`;
+  $('#ovBack').addEventListener('click', e => { e.preventDefault(); setView('board'); });
+  fillOverlay();
+  if(overlayTimer) clearInterval(overlayTimer);
+  overlayTimer = setInterval(fillOverlay, 15000);
+}
+
 async function loadSongs(){
   try{ const d = await api('/api/songs?visible=0'); songs = d.songs || []; }
   catch(e){ songs = []; main.innerHTML = '<p class="lede" style="padding:30px 0">Could not load songs: '+esc(e.message)+' <button class="btn" onclick="location.reload()">Tap to retry</button></p>'; }
 }
 
 function setView(v){
-  view = v; currentSetlist = null;
+  view = v; currentSetlist = null; makerSetlist = null;
+  if(overlayTimer){ clearInterval(overlayTimer); overlayTimer = null; }
+  const nav = document.getElementById('topnav');
+  if(nav) nav.style.display = (v==='overlay') ? 'none' : '';
   document.querySelectorAll('#topnav button').forEach(b => b.classList.toggle('on', b.dataset.view === v));
   if(v==='board') renderBoard();
+  else if(v==='qr') renderQR();
   else if(v==='add') renderAdd();
+  else if(v==='import') renderImport();
   else if(v==='queue') renderQueue();
+  else if(v==='maker') renderMaker();
   else if(v==='setlists') renderSetlists();
+  else if(v==='mod') renderMod();
+  else if(v==='overlay') renderOverlay();
   else if(v==='notes') renderNotes();
   window.scrollTo(0,0);
 }
@@ -348,8 +550,9 @@ document.querySelectorAll('#topnav button').forEach(b => b.addEventListener('cli
 
 (async function init(){
   await loadSongs();
+  lastSync = new Date();
   const v = new URLSearchParams(location.search).get('view');
-  if (v && ['board','add','queue','setlists','notes'].includes(v)) setView(v);
+  if (v && ['board','qr','add','import','queue','maker','setlists','mod','overlay','notes'].includes(v)) setView(v);
   else renderBoard();
 })();
 </script>
