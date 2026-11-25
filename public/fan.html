@@ -17,10 +17,8 @@ header.top{position:sticky;top:0;z-index:20;background:rgba(10,10,12,.94);-webki
 .brand .keys{font-size:22px;font-weight:900;letter-spacing:.06em;line-height:1}
 .brand .keys b{color:var(--gold)}
 .brand .sub{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);font-weight:700}
-h1.page{font-size:clamp(36px,10vw,56px);font-weight:900;letter-spacing:.01em;line-height:.95;margin:20px 0 8px;text-transform:uppercase}
+h1.page{font-size:clamp(36px,10vw,56px);font-weight:900;letter-spacing:.01em;line-height:.95;margin:20px 0 14px;text-transform:uppercase}
 h1.page em{font-style:normal;color:var(--gold)}
-.lede{color:var(--dim);font-size:15.5px;margin:0 0 18px;line-height:1.5}
-.lede b{color:var(--ink)}
 .tools{position:sticky;top:var(--hdr,52px);z-index:10;background:var(--bg);padding:8px 0 10px;margin:0 -2px;display:flex;flex-direction:column;gap:10px}
 .search{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:0 6px 0 14px;min-height:48px}
 .search input{flex:1;background:transparent;border:0;outline:0;color:var(--ink);font-size:16px;padding:12px 0;min-width:0}
@@ -30,7 +28,6 @@ h1.page em{font-style:normal;color:var(--gold)}
 .chips::-webkit-scrollbar{display:none}
 .chips button{flex:none;background:var(--panel);border:1px solid var(--line);color:var(--dim);border-radius:99px;padding:0 15px;min-height:44px;font-size:14px;font-weight:700;white-space:nowrap}
 .chips button.active{background:var(--gold);border-color:var(--gold);color:#0a0a0c}
-.count{font-size:12.5px;color:var(--faint);margin:2px 2px 8px}
 .song-list{display:flex;flex-direction:column;gap:8px}
 .song{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;text-align:left;width:100%;color:var(--ink);min-height:60px}
 .song:active{border-color:var(--gold-deep);background:var(--panel2)}
@@ -66,7 +63,6 @@ h1.page em{font-style:normal;color:var(--gold)}
 .kicker{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);font-weight:700}
 .req-song h2{margin:6px 0 2px;font-size:26px;overflow-wrap:anywhere}
 .req-song .artist{color:var(--dim);font-size:15px}
-.min-note{margin-top:14px;background:#241b05;border:1px solid #4a3808;color:#f5cd6b;border-radius:10px;padding:10px 12px;font-size:14px;line-height:1.45}
 .field{margin-top:16px}
 .field label{display:block;font-size:13.5px;font-weight:700;letter-spacing:.03em;margin-bottom:7px}
 .field label span{color:var(--faint);font-weight:500}
@@ -175,17 +171,11 @@ function listHTML(){
   const list = filtered();
   let empty = '';
   if(!list.length){
-    if(st.era === 'favorites' && !st.q) empty = '<div class="no-results">No favorites starred yet — the whole board is under <b>All</b>.</div>';
-    else empty = `<div class="no-results">No matches${st.viewerSetlists.length ? ' in tonight’s setlist' : ' on the board'} — try <b>All</b>, or send a custom request below.</div>`;
+    empty = '<div class="no-results">No matches</div>';
   }
-  return `<div class="count">${list.length} song${list.length === 1 ? '' : 's'}${st.era === 'favorites' && !st.q ? ' in ★ Favorites' : ''}${st.q ? ' matching “' + esc(st.q) + '”' : ''}</div>
-    <div class="song-list">${list.map(songRow).join('')}</div>${empty}`;
+  return `<div class="song-list">${list.map(songRow).join('')}</div>${empty}`;
 }
 
-function priceLine(){
-  if(st.globalMin > 0) return `Tonight every request starts at a <b>${money(st.globalMin)} tip</b>, and tipped requests get played first. A few signature numbers carry their own minimum, shown on the song.`;
-  return `Requests are free but requests with tips get played first! Tips start at $5. A few signature numbers carry their own minimum, shown on the song.`;
-}
 
 function renderBoard(){
   const n = st.songs.length;
@@ -193,7 +183,6 @@ function renderBoard(){
   ${PREVIEW ? `<button type="button" class="fan-return" id="backPerf">← Back to performer songbook</button>
     <p class="fan-preview-note"><b>View as Fan</b> — this is exactly what fans see on their phones: no charts, editing or performer tabs, and hidden songs never appear. It refreshes on its own when you change songs, setlists or the Tips setting. One performer-only extra: each row has a <b>Tag</b> button (fans never see it) to fix a song's tags right here.</p>` : ''}
   <h1 class="page">Request a <em>$ong</em></h1>
-  <p class="lede">${priceLine()} <b>${n}</b> songs on the board tonight. The board opens on the band’s <b>★ Favorites</b> — tap <b>All</b> or any era to browse everything.${st.viewerSetlists.length ? ` Tonight’s board is the <b>“${esc(st.viewerSetlists.join('” + “'))}”</b> setlist — only these songs are up for request.` : ''}</p>
   <div class="tools">
     <div class="search"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#6f6a5e" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.8-3.8"/></svg>
       <input type="search" id="q" value="${esc(st.q)}" placeholder="Search songs or artists…" autocomplete="off" autocorrect="off" enterkeyhint="search" aria-label="Search songs or artists">
@@ -202,8 +191,8 @@ function renderBoard(){
   </div>
   <div id="list">${listHTML()}</div>
   <div class="board-cards">
-    <button type="button" class="board-card" data-special="custom"><h3>Don’t see your song?</h3><p>Send a <b>custom request</b> — any song, any artist.</p></button>
-    <button type="button" class="board-card" data-special="shoutout"><h3>Just a shout-out</h3><p>Birthday, anniversary, or just saying hi — no song, straight to the mic.</p></button>
+    <button type="button" class="board-card" data-special="custom"><h3>Don’t see your song?</h3></button>
+    <button type="button" class="board-card" data-special="shoutout"><h3>Just a shout-out</h3></button>
   </div>`;
   setHdr();
   const q = document.getElementById('q');
@@ -262,11 +251,11 @@ function tipButtons(req){
   const need = needFor(req);
   if(need > 0){
     const own = req.mode === 'song' && req.song.ownMinCents > 0;
-    return [{ v:need, label:money(need), small: own ? 'set minimum' : 'minimum' }]
+    return [{ v:need, label:money(need) }]
       .concat([2000, 5000, 10000].filter(a => a > need).slice(0, 2).map(a => ({ v:a, label:money(a) })))
-      .concat([{ v:'custom', label:'Other', small: money(need) + ' or more' }]);
+      .concat([{ v:'custom', label:'Other' }]);
   }
-  return [{ v:0, label:'No tip', small:'request only' }, { v:500, label:'$5' }, { v:1000, label:'$10' }, { v:2000, label:'$20' }, { v:5000, label:'$50' }, { v:'custom', label:'Other', small:'you pick' }];
+  return [{ v:0, label:'No tip' }, { v:500, label:'$5' }, { v:1000, label:'$10' }, { v:2000, label:'$20' }, { v:5000, label:'$50' }, { v:'custom', label:'Other' }];
 }
 function tipCents(req){
   if(req.tipSel !== 'custom') return req.tipSel;
@@ -275,31 +264,19 @@ function tipCents(req){
 }
 function renderReq(){
   const req = st.req, need = needFor(req);
-  const own = req.mode === 'song' && req.song.ownMinCents > 0;
-  const title = req.mode === 'song' ? req.song.title : req.mode === 'custom' ? 'Any song you want' : 'A shout-out, no song';
-  const artist = req.mode === 'song' ? req.song.artist : req.mode === 'custom' ? 'Type the song and artist in the box below' : 'Read out live by the performers';
-  const kicker = req.mode === 'song' ? 'Your request' : req.mode === 'custom' ? 'Custom request' : 'Shout-out only';
-  let note = '';
-  if(own) note = `This one’s a signature number — it carries a <b>set ${money(need)} minimum tip</b>. That minimum stands: it can’t be lowered or typed over, only tipped above.`;
-  else if(req.mode === 'song' && need > 0) note = `Tonight every request starts at a <b>${money(need)} tip</b> — pick that or more to send.`;
-  let sub;
-  if(own) sub = `This signature number starts at its <b>set minimum of ${money(need)}</b> — that’s the floor, and you’re welcome to go higher. There’s no no-tip option on this one.`;
-  else if(req.mode === 'song' && need > 0) sub = `Tonight’s requests start at <b>${money(need)}</b> — that’s the floor, and you’re welcome to go higher.`;
-  else if(req.mode === 'song') sub = 'Tipping is optional — your request goes in either way. If you do tip, it’s $5 or more.';
-  else sub = `Custom requests and shout-outs carry a <b>${money(need)} minimum tip</b> — pick an amount and you’re in.`;
+  const title = req.mode === 'song' ? req.song.title : req.mode === 'custom' ? 'Custom request' : 'Shout-out';
+  const artist = req.mode === 'song' ? req.song.artist : '';
   app.innerHTML = `
   <button type="button" class="back-btn" id="back">← Back to the song board</button>
   <div class="req-song">
-    <div class="kicker">${kicker}</div><h2>${esc(title)}</h2><div class="artist">${esc(artist)}</div>
-    ${note ? `<div class="min-note">${note}</div>` : ''}
+    <h2>${esc(title)}</h2>${artist ? `<div class="artist">${esc(artist)}</div>` : ''}
     ${req.mode === 'custom' ? `<div class="field"><label for="customText">Song &amp; artist you want</label><input type="text" id="customText" value="${esc(req.customText)}" placeholder="e.g. Piano Man — Billy Joel" autocomplete="off" enterkeyhint="next"></div>` : ''}
-    <div class="field"><label for="fanName">Your name <span>(so we can call it out)</span></label><input type="text" id="fanName" value="${esc(req.name)}" placeholder="e.g. Dana from Winnipeg" autocomplete="given-name" enterkeyhint="next" maxlength="60"></div>
-    <div class="field"><label for="fanMsg">${req.mode === 'shoutout' ? 'Your shout-out' : 'Dedication or message'} <span>(optional)</span></label><textarea id="fanMsg" placeholder="e.g. For my wife — it's our 20th anniversary tonight!" maxlength="300">${esc(req.msg)}</textarea></div>
+    <div class="field"><label for="fanName">Your name</label><input type="text" id="fanName" value="${esc(req.name)}" placeholder="e.g. Dana from Winnipeg" autocomplete="given-name" enterkeyhint="next" maxlength="60"></div>
+    <div class="field"><label for="fanMsg">${req.mode === 'shoutout' ? 'Your shout-out' : 'Message'}</label><textarea id="fanMsg" placeholder="e.g. For my wife — it's our 20th anniversary tonight!" maxlength="300">${esc(req.msg)}</textarea></div>
   </div>
   <div class="love-box" id="tipStep">${st.sent ? sentHTML() : `
     <h3><span class="heart">❤</span> Show some love</h3>
-    <p class="sub">${sub}</p>
-    <div class="tip-grid">${tipButtons(req).map((b, i) => `<button type="button" data-tip="${b.v}" class="${req.tipSel === b.v ? 'sel' : ''}">${b.label}${b.small ? `<small>${b.small}</small>` : ''}</button>`).join('')}</div>
+    <div class="tip-grid">${tipButtons(req).map((b, i) => `<button type="button" data-tip="${b.v}" class="${req.tipSel === b.v ? 'sel' : ''}">${b.label}</button>`).join('')}</div>
     ${req.tipSel === 'custom' ? `<div class="custom-tip"><span>$</span><input type="text" inputmode="decimal" id="customTip" value="${esc(req.customTip)}" placeholder="Amount" aria-label="Custom tip amount"></div>` : ''}
     <div class="tip-error" id="err" role="alert"></div>
     <button type="button" class="send-btn" id="send">${sendLabel(req)}</button>`}
@@ -315,7 +292,7 @@ function renderReq(){
   const ct = document.getElementById('customTip');
   if(ct){
     ct.addEventListener('input', () => { ct.value = ct.value.replace(/[^0-9.]/g, ''); req.customTip = ct.value; document.getElementById('send').textContent = sendLabel(req); });
-    ct.addEventListener('blur', () => { const v = parseFloat(req.customTip); if(need > 0 && !isNaN(v) && v * 100 < need){ req.customTip = String(need/100); ct.value = req.customTip; showErr(`The minimum for this one is ${money(need)} — it can’t come down, only up.`); document.getElementById('send').textContent = sendLabel(req); } });
+    ct.addEventListener('blur', () => { const v = parseFloat(req.customTip); if(need > 0 && !isNaN(v) && v * 100 < need){ req.customTip = String(need/100); ct.value = req.customTip; showErr(`Minimum tip ${money(need)}`); document.getElementById('send').textContent = sendLabel(req); } });
   }
   document.getElementById('send').addEventListener('click', send);
 }
@@ -325,21 +302,21 @@ function showErr(m){ const e = document.getElementById('err'); if(e){ e.textCont
 async function send(){
   const req = st.req, need = needFor(req), t = tipCents(req);
   showErr('');
-  if(req.mode === 'custom' && !req.customText.trim()) return showErr('Tell us the song and artist for your custom request.');
-  if(req.tipSel === 'custom' && t == null) return showErr('Enter a tip amount, or pick one of the amounts above.');
-  if(need > 0 && (!t || t < need)) return showErr(`This request needs a tip of at least ${money(need)} — bump it up and you're good.`);
-  if(need === 0 && t && t > 0 && t < st.floor) return showErr('Tips start at $5 — go $5 or more, or send it with no tip at all.');
+  if(req.mode === 'custom' && !req.customText.trim()) return showErr('Enter the song and artist.');
+  if(req.tipSel === 'custom' && t == null) return showErr('Enter a tip amount.');
+  if(need > 0 && (!t || t < need)) return showErr(`Minimum tip ${money(need)}`);
+  if(need === 0 && t && t > 0 && t < st.floor) return showErr('Minimum tip $5');
   const btn = document.getElementById('send'); btn.disabled = true; btn.textContent = 'Sending…';
   try{
     const body = { kind: req.mode, songId: req.mode === 'song' ? req.song.id : null, songTitle: req.mode === 'song' ? req.song.title : '',
       customText: req.customText, requester: req.name.trim(), message: req.msg.trim(), tipCents: t || 0 };
     const d = await api('/api/queue', { method:'POST', body: JSON.stringify(body) });
-    st.sent = { title: req.mode === 'song' ? req.song.title : req.mode === 'custom' ? 'Your custom request' : 'Your shout-out', tip: t || 0, id: d.item.id };
+    st.sent = { title: req.mode === 'song' ? req.song.title : req.mode === 'custom' ? req.customText.trim() : 'Shout-out', tip: t || 0, id: d.item.id };
     const box = document.getElementById('tipStep');
     box.classList.add('sent-box'); box.innerHTML = sentHTML(); wireSent();
     box.scrollIntoView({ block:'center', behavior:'smooth' });
     celebrate(box, st.sent.tip > 0);
-    toast(st.sent.tip > 0 ? `${money(st.sent.tip)} tip — “${st.sent.title}” jumps to the front of the line!` : 'Request sent — thank you!');
+    toast('Request sent!');
   }catch(e){
     btn.disabled = false; btn.textContent = sendLabel(req);
     if(e.data && e.data.requiredCents !== undefined){ await load().catch(() => {}); }
@@ -349,7 +326,7 @@ async function send(){
 function sentHTML(){
   const s = st.sent;
   return `<div class="check">✓</div><h3>You’re in!</h3>
-    <p><b>${esc(s.title)}</b> is in the band’s queue${s.tip > 0 ? ` with your <b>${money(s.tip)} tip</b> — tipped requests get played first` : ''}. Thanks for the love!</p>
+    <p><b>${esc(s.title)}</b>${s.tip > 0 ? ` · ${money(s.tip)} tip` : ''}</p>
     <button type="button" class="btn-gold" id="again">Request another</button>`;
 }
 function wireSent(){ const a = document.getElementById('again'); if(a) a.addEventListener('click', closeReq); }
