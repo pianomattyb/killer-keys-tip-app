@@ -59,6 +59,12 @@ textarea{min-height:120px;font-family:ui-monospace,Menlo,Consolas,monospace}
 .chartbox{background:#000;color:#fff;border:1px solid #222;border-radius:10px;padding:16px 18px;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Arial,sans-serif;font-weight:700;font-size:19px;line-height:1.4;white-space:pre-wrap;overflow-wrap:anywhere;word-break:normal;-webkit-user-select:text;user-select:text;tab-size:4;-webkit-text-size-adjust:100%}
 .chartbox div,.chartbox p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;background:transparent}
 .notebar{position:static;margin-bottom:8px}
+.tagpick{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 4px;align-items:center}
+.tagchip{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:99px;padding:9px 15px;font-weight:700;cursor:pointer;font-size:14px;min-height:38px}
+.tagchip.on{background:var(--gold);color:#000;border-color:var(--gold)}
+.tagchip.add{border-style:dashed;color:var(--muted)}
+.tagother{display:inline-flex;gap:6px;align-items:center}.tagother[hidden]{display:none}
+.tagother input{width:130px;padding:8px 10px;margin:0}
 #aNote{min-height:180px}
 .chartbox:empty::before{content:attr(data-empty);color:var(--muted);font-weight:600}
 .chartbox.editing{outline:2px dashed var(--gold);outline-offset:3px;cursor:text;caret-color:#feff0a}
@@ -520,6 +526,44 @@ function wireNoteEditor(box, bar){
   const fs = bar.querySelector('[data-fs]'); fs.addEventListener('change', () => { const v = fs.value; fs.value = ''; if(v !== '') fmt('fontSize', v); });
   box.addEventListener('paste', e => { const cd = e.clipboardData; if(!cd) return; e.preventDefault(); notePasteInsert(cd); });
 }
+
+// ---- tag picker: tap preset chips (multi-select, tap again to clear) ----
+// Saved tags use the same spelling as the Song Board filter chips, so filters always match.
+const PRESET_TAGS = ['50s','60s','70s','80s','90s','2000s','2010s','2020s','Country','Medleys','Bangers'];
+function canonTag(t){
+  t = String(t||'').trim(); if(!t) return '';
+  const k = t.toLowerCase().replace(/[’']/g,'').replace(/\s+/g,'');
+  const m = k.match(/^(?:19)?([5-9]0)s?$/); if(m) return m[1] + 's';        // 80, 80's, 1980s -> 80s
+  const y = k.match(/^(20[0-2]0)s?$/); if(y) return y[1] + 's';              // 2000, 2000's -> 2000s
+  const p = PRESET_TAGS.find(x => x.toLowerCase() === k); if(p) return p;
+  return t;
+}
+function tagPickerHTML(id, tags){
+  const sel = []; (tags||[]).forEach(t => { const c = canonTag(t); if(c && !sel.includes(c)) sel.push(c); });
+  const all = PRESET_TAGS.concat(sel.filter(t => !PRESET_TAGS.includes(t)));
+  return `<div class="tagpick" id="${id}">${all.map(t => `<button type="button" class="tagchip${sel.includes(t)?' on':''}" data-tagv="${esc(t)}" aria-pressed="${sel.includes(t)}">${esc(t)}</button>`).join('')}
+    <button type="button" class="tagchip add" data-tagadd>+ other</button>
+    <span class="tagother" hidden><input type="text" placeholder="New tag" maxlength="30"><button type="button" class="tagchip" data-tagok>Add</button></span></div>`;
+}
+function wireTagPicker(root){
+  const flip = b => { const on = !b.classList.contains('on'); b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); };
+  root.addEventListener('click', e => {
+    const b = e.target.closest('button'); if(!b || !root.contains(b)) return;
+    if(b.hasAttribute('data-tagv')) flip(b);
+    else if(b.hasAttribute('data-tagadd')){ const o = root.querySelector('.tagother'); o.hidden = !o.hidden; if(!o.hidden) o.querySelector('input').focus(); }
+    else if(b.hasAttribute('data-tagok')) addOther();
+  });
+  const inp = root.querySelector('.tagother input');
+  const addOther = () => {
+    const t = canonTag(inp.value); if(!t) return;
+    let chip = [...root.querySelectorAll('[data-tagv]')].find(x => x.dataset.tagv.toLowerCase() === t.toLowerCase());
+    if(!chip){ chip = document.createElement('button'); chip.type = 'button'; chip.className = 'tagchip'; chip.dataset.tagv = t; chip.textContent = t; root.insertBefore(chip, root.querySelector('[data-tagadd]')); }
+    if(!chip.classList.contains('on')) flip(chip);
+    inp.value = ''; root.querySelector('.tagother').hidden = true;
+  };
+  inp.addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); addOther(); } });
+}
+function readTags(root){ return [...root.querySelectorAll('[data-tagv].on')].map(b => b.dataset.tagv); }
 function songNoteHtml(song){ return song.noteHtml || noteFromChart(song.chartHtml || ''); }
 function applyChartType(box, size, spacing){
   box.style.fontSize = size + 'px';
@@ -767,7 +811,7 @@ function renderSongEditor(song, focusId, opts){
     <h2>Edit song</h2>
     <label>Title</label><input type="text" id="eTitle" value="${esc(song.title)}">
     <label>Artist</label><input type="text" id="eArtist" value="${esc(song.artist||'')}">
-    <label>Tags (comma-separated: 60s, 80s, Country, Medleys, Bangers...)</label><input type="text" id="eTags" value="${esc((song.tags||[]).join(', '))}">
+    <label>Tags (tap to pick, tap again to remove)</label>${tagPickerHTML('eTags', song.tags)}
     <label>Minimum tip (dollars, 0 = none)</label><input type="number" id="eMin" min="0" step="1" value="${(song.minTipCents||0)/100}">
     <label>Chart source link (optional)</label><input type="text" id="eSrc" value="${esc(song.chartSource||'')}">
     <p class="small" style="margin-top:12px">The chord chart is edited right in the black chart box below: tap <b>Unlock to edit</b>, type or paste (colours from Apple Notes come along), colour any letters, then <b>Save &amp; lock</b>.</p>
@@ -779,6 +823,7 @@ function renderSongEditor(song, focusId, opts){
   </div>`;
   const panel = el.firstElementChild;
   bringIntoView(panel);
+  wireTagPicker($("#eTags"));
   const f = $('#'+(focusId||'eTitle')); if(f){ try{ f.focus({preventScroll:true}); if(f.select) f.select(); }catch(e){} }
   $('#cancelEdit').addEventListener('click', () => { el.innerHTML=''; bringIntoView(main); });
   $('#delSong').addEventListener('click', async () => {
@@ -787,7 +832,7 @@ function renderSongEditor(song, focusId, opts){
     toast('Song deleted'); await loadSongs(); view='board'; renderBoard();
   });
   $('#saveSong').addEventListener('click', async () => {
-    const tags = $('#eTags').value.split(',').map(t=>t.trim()).filter(Boolean);
+    const tags = readTags($('#eTags'));
     const body = {
       title: $('#eTitle').value, artist: $('#eArtist').value, tags,
       minTipCents: Math.round(Number($('#eMin').value||0)*100),
@@ -806,7 +851,7 @@ function renderAdd(){
   <div class="panel">
     <label>Title *</label><input type="text" id="aTitle" placeholder="Song title">
     <label>Artist</label><input type="text" id="aArtist" placeholder="Artist">
-    <label>Tags (comma-separated)</label><input type="text" id="aTags" placeholder="80s, Bangers">
+    <label>Tags (tap to pick, tap again to remove)</label>${tagPickerHTML('aTags', [])}
     <label>Minimum tip (dollars, 0 = none)</label><input type="number" id="aMin" min="0" step="1" value="0">
     <label>Chord chart (optional) — type or paste from Apple Notes; select letters to colour them</label>
     ${noteToolbarHTML('a')}
@@ -814,13 +859,14 @@ function renderAdd(){
     <div class="btnrow"><button class="btn" id="addSave">Add song</button><button class="btn ghost" id="addCancel">Cancel</button></div>
   </div>`;
   wireNoteEditor($('#aNote'), $('#aBar'));
+  wireTagPicker($('#aTags'));
   $('#addCancel').addEventListener('click', () => { view='board'; renderBoard(); });
   $('#addSave').addEventListener('click', async () => {
     const title = $('#aTitle').value.trim();
     if(!title){ toast('Title is required'); return; }
     const body = {
       title, artist: $('#aArtist').value.trim(),
-      tags: $('#aTags').value.split(',').map(t=>t.trim()).filter(Boolean),
+      tags: readTags($('#aTags')),
       minTipCents: Math.round(Number($('#aMin').value||0)*100),
       noteHtml: cleanChartHtml($('#aNote'))
     };
