@@ -38,12 +38,13 @@ async function get(p) {
   if (Object.keys(charts).length < 100) throw new Error('refusing to export: only ' + Object.keys(charts).length + ' charts came back');
   const lists = setlists.map((l) => ({ date: l.date || '', id: l.id, name: l.name, status: l.status || 'saved', viewers: l.viewers !== false,
     songs: l.songs.map((e) => ({ artist: e.artist || '', off: !!e.off, title: e.title })) }));
-  const st = Object.assign({}, settings); delete st.overlayExplodeAt;
+  const st = Object.assign({}, settings); delete st.overlayExplodeAt; delete st.overlayTest; // tipTallyCents / tipGoalCents / tipGoalShow ride along so the tip tally survives a deploy
   fs.mkdirSync(OUT, { recursive: true });
   fs.writeFileSync(path.join(OUT, 'songs-export-2026-11-24.json'), JSON.stringify(songRows));
   fs.writeFileSync(path.join(OUT, 'charts-all.json'), JSON.stringify(charts));
   fs.writeFileSync(path.join(OUT, 'setlists-export-2026-11-24.json'), JSON.stringify(lists));
   fs.writeFileSync(path.join(OUT, 'settings.json'), JSON.stringify(st, null, 1));
   fs.writeFileSync(path.join(OUT, 'notes.json'), JSON.stringify({ body: notes.body || '' }));
+  console.log(`tip tally ${st.tipTallyCents || 0}c of goal ${st.tipGoalCents || 40000}c`);
   console.log(`exported ${songRows.length} songs (${Object.keys(charts).length} charts), ${lists.length} setlists (${lists.map((l) => l.name + ': ' + l.songs.length).join(', ')}) to ${OUT}`);
 })().catch((e) => { console.error('EXPORT FAILED:', e.message); process.exit(1); });

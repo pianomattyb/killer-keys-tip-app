@@ -131,7 +131,7 @@ function makeEngine(layer){
 
 function show(stage, o){
   injectCss();
-  const tip = Math.max(0, Number(o.tipCents) || 0), tier = tierOf(tip);
+  const tip = Math.max(0, Number(o.tipCents) || 0), tier = ['small','medium','big'].includes(o.tier) ? o.tier : tierOf(tip);
   if(getComputedStyle(stage).position === 'static') stage.style.position = 'relative';
   const layer = document.createElement('div'); layer.className = 'kkfx';
   stage.appendChild(layer);
@@ -139,12 +139,12 @@ function show(stage, o){
   const hold = tier === 'big' ? 3.9 : tier === 'medium' ? 3.2 : 2.6;      // card starts leaving at this second
   layer.style.setProperty('--u', u); layer.style.setProperty('--hold', hold + 's');
   if(o.color) layer.style.setProperty('--kkc', o.color);
-  const kicker = o.test ? 'Test explosion' : o.kind === 'shoutout' ? 'Shout-out' : o.kind === 'custom' ? 'Custom request' : tier === 'big' ? '★ Big tip ★' : tip > 0 ? 'Tipped request' : 'New request';
+  const kicker = o.kicker ? o.kicker : o.test ? 'Test explosion' : o.kind === 'shoutout' ? 'Shout-out' : o.kind === 'custom' ? 'Custom request' : tier === 'big' ? '★ Big tip ★' : tip > 0 ? 'Tipped request' : 'New request';
   layer.innerHTML = (reduce() ? '' : `<div class="kkfx-flash${tier === 'big' ? ' big' : ''}"></div>`) +
     `<div class="kkfx-card ${tier}"><div class="kkfx-kick">${esc(kicker)}</div><div class="kkfx-title">${esc(o.title || 'Song request')}</div>` +
     (o.artist ? `<div class="kkfx-artist">${esc(o.artist)}</div>` : '') +
     (o.requester ? `<div class="kkfx-who">for ${esc(o.requester)}</div>` : '') +
-    (tip > 0 ? `<div class="kkfx-tip">${money(tip)} tip</div>` : '') + `</div>`;
+    (o.badge ? `<div class="kkfx-tip">${esc(o.badge)}</div>` : tip > 0 ? `<div class="kkfx-tip">${money(tip)} tip</div>` : '') + `</div>`;
   const total = (hold + .5) * 1000;
   if(reduce()){ setTimeout(() => layer.remove(), total); return total; }
   const fx = makeEngine(layer), W = fx.W, H = fx.H, P = GOLD;

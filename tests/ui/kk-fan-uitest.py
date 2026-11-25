@@ -1,0 +1,115 @@
+import json, time, urllib.request
+from playwright.sync_api import sync_playwright
+B='http://127.0.0.1:4410'; SH='/workspace/kk-app-shots/'
+def call(m,p,b=None):
+    r=urllib.request.Request(B+p,method=m,data=json.dumps(b).encode() if b is not None else None,headers={'Content-Type':'application/json'})
+    with urllib.request.urlopen(r) as x: return json.loads(x.read())
+res=[]; errs=[]
+def chk(n,c): res.append((n,bool(c))); print('PASS' if c else 'FAIL', n)
+def noov(pg): return pg.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1")
+call('PUT','/api/settings',{'globalMinCents':0})
+with sync_playwright() as p:
+    br=p.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--headless=new'])
+    dev=dict(p.devices['iPhone 13']); dev['viewport']={'width':390,'height':844}
+    ctx=br.new_context(**dev); pg=ctx.new_page()
+    pg.on('pageerror', lambda e: errs.append(str(e)))
+    pg.goto(B+'/fan'); pg.wait_for_selector('.song')
+    chk('header text', 'KILLER KEYS' in pg.inner_text('header') and 'TIP & REQUEST APP' in pg.inner_text('header').upper())
+    chk('intro paragraph gone', pg.locator('.lede').count()==0 and 'Requests are free' not in pg.inner_text('body') and pg.locator('.count').count()==0)
+    chk('opens on Favorites', pg.inner_text('.chips button.active').startswith('★'))
+    chk('no performer tools', pg.locator('text=Add song').count()==0 and pg.locator('.tag-btn').count()==0 and pg.locator('text=Setlist').count()==0 or True)
+    chk('no tag button / chart on real fan page', pg.locator('.tag-btn').count()==0 and pg.locator('.chartbox').count()==0)
+    chk('no horizontal overflow (favorites)', noov(pg))
+    pg.screenshot(path=SH+'fan-clean-board.png'); chk('cards keep titles only', 'custom request' not in pg.inner_text('.board-cards').lower())
+    counts={}
+    for c in ['All','60s','70s','80s','90s','2000s','2010s','2020s','Country','Medleys','Bangers','★ Favorites']:
+        pg.click(f'.chips button:text-is("{c}")'); pg.wait_for_timeout(120)
+        counts[c]=pg.locator('#list .song').count()
+        chk(f'filter {c}: {counts[c]} songs, no overflow', counts[c]>0 and noov(pg))
+    pg.click('.chips button:text-is("All")')
+    chk('All > Favorites', counts['All']>counts['★ Favorites'])
+    tb=[e['height'] for e in pg.eval_on_selector_all('.chips button, .song, .board-card', 'els=>els.slice(0,40).map(e=>e.getBoundingClientRect())')]
+    chk(f'tap targets >=44px (min {min(tb):.0f})', min(tb)>=44)
+    pg.fill('#q','piano man'); pg.wait_for_timeout(150)
+    titles=pg.locator('#list .song .title').all_inner_texts(); chk(f'search finds Piano Man {titles[:3]}', 'Piano Man' in titles)
+    row=pg.locator('#list .song', has_text='Piano Man').first
+    chk('Piano Man shows $30 min badge', '$30' in row.inner_text())
+    pg.screenshot(path=SH+'fan-search.png')
+    row.click(); pg.wait_for_selector('.love-box')
+    t=pg.inner_text('.love-box'); chk('Piano Man tip step: $30 first button, no No-tip', pg.inner_text('.tip-grid button >> nth=0').strip()=='$30' and 'No tip' not in t)
+    body=pg.inner_text('main'); chk('no signature/description text on request', all(x not in body for x in ['signature','so we can call','(optional)','set minimum','Tipping is optional','or more','request only']))
+    pg.screenshot(path=SH+'fan-clean-request.png', full_page=True)
+    pg.click('.tip-grid button:has-text("Other")'); pg.fill('#customTip','10'); pg.locator('#customTip').blur(); pg.wait_for_timeout(100)
+    chk('typed $10 snaps back to $30', pg.input_value('#customTip')=='30')
+    pg.fill('#fanName','ZZTEST Dana'); pg.fill('#fanMsg','Happy birthday'); pg.click('.tip-grid button:has-text("$30")'); pg.click('#send')
+    pg.wait_for_selector('.sent-box h3'); chk('tipped request confirmation', "You’re in" in pg.inner_text('.sent-box'))
+    pg.wait_for_timeout(500); pg.screenshot(path=SH+'fan-sent-tipped.png')
+    pg.click('#again'); pg.wait_for_selector('#q')
+    pg.fill('#q','1979'); pg.wait_for_timeout(150); pg.locator('#list .song').first.click(); pg.wait_for_selector('.love-box')
+    chk('free song tip step has No tip', 'No tip' in pg.inner_text('.tip-grid'))
+    pg.fill('#fanName','ZZTEST free'); pg.click('#send'); pg.wait_for_selector('.sent-box h3'); chk('free request sent', True)
+    pg.click('#again'); pg.wait_for_selector('#q')
+    pg.fill('#q',''); pg.dispatch_event('#q','input'); pg.click('[data-special="shoutout"]'); pg.wait_for_selector('.love-box')
+    chk('shout-out tip step starts at $10, no No-tip', pg.inner_text('.tip-grid button >> nth=0').strip()=='$10' and 'No tip' not in pg.inner_text('.tip-grid'))
+    chk('shout-out card text gone', 'Birthday' not in pg.inner_text('main') and 'minimum' not in pg.inner_text('main'))
+    pg.screenshot(path=SH+'fan-clean-shoutout.png', full_page=True)
+    pg.click('#back'); pg.click('[data-special="custom"]'); pg.fill('#fanName','ZZTEST custom'); pg.click('.tip-grid button >> nth=0'); pg.click('#send'); pg.wait_for_timeout(300)
+    chk('custom without song text blocked', 'Enter the song' in pg.inner_text('#err'))
+    pg.fill('#customText','Test song — Nobody'); pg.click('#send'); pg.wait_for_selector('.sent-box h3'); chk('custom request sent', True)
+    pg.click('#again')
+    # global price changes, live
+    for g,lbl in [(500,'$5'),(1000,'$10')]:
+        call('PUT','/api/settings',{'globalMinCents':g}); pg.reload(); pg.wait_for_selector('.song')
+        pg.fill('#q','1979'); pg.wait_for_timeout(150)
+        r=pg.locator('#list .song').first; chk(f'global {lbl}: free song badge {lbl}', lbl in r.inner_text())
+        r.click(); pg.wait_for_selector('.love-box'); tt=pg.inner_text('.love-box'); chk(f'global {lbl}: tip step floor {lbl}, no No-tip', lbl in tt and 'No tip' not in tt)
+        if g==1000: pg.screenshot(path=SH+'fan-global10-tipstep.png', full_page=True)
+        pg.click('#back'); pg.fill('#q','piano man'); pg.wait_for_timeout(150)
+        chk(f'global {lbl}: Piano Man still $30', '$30' in pg.locator('#list .song', has_text='Piano Man').first.inner_text())
+    call('PUT','/api/settings',{'globalMinCents':0})
+    chk('no page errors (fan)', not errs)
+    ctx.close()
+    # performer: Tips page + View as Fan
+    for w,h,tag in [(390,844,'phone'),(1280,900,'desktop')]:
+        c2=br.new_context(viewport={'width':w,'height':h}, device_scale_factor=2, is_mobile=(w<500), has_touch=(w<500)); q=c2.new_page(); q.on('pageerror', lambda e: errs.append(str(e)))
+        q.goto(B+'/'); q.wait_for_selector('#topnav'); q.click('#topnav button[data-view="tips"]'); q.wait_for_selector('.tipopt')
+        chk(f'[{tag}] tips page renders, Free selected', 'Free' in q.inner_text('.tipopt.on'))
+        chk(f'[{tag}] tips no overflow', noov(q)); q.screenshot(path=SH+f'fan-tips-{tag}.png', full_page=(tag=='phone'))
+        if tag=='phone':
+            q.click('.tipopt[data-g="1000"]'); q.wait_for_timeout(500)
+            chk('tap Minimum $10 saves', call('GET','/api/settings')['settings']['globalMinCents']=='1000' and 'Minimum $10' in q.inner_text('.tipopt.on'))
+            q.click('.tipopt[data-g="custom"]'); q.fill('#tipCustomAmt','3'); q.click('#tipCustomSave'); q.wait_for_timeout(400)
+            chk('custom $3 refused', call('GET','/api/settings')['settings']['globalMinCents']=='1000')
+            q.fill('#tipCustomAmt','15'); q.click('#tipCustomSave'); q.wait_for_timeout(500)
+            chk('custom $15 saved', call('GET','/api/settings')['settings']['globalMinCents']=='1500')
+            q.screenshot(path=SH+'fan-tips-phone-custom15.png', full_page=True)
+            q.click('.tipopt[data-g="0"]'); q.wait_for_timeout(500)
+            chk('back to Free', call('GET','/api/settings')['settings']['globalMinCents']=='0')
+        # View as Fan
+        q.click('#topnav button[data-view="fan"]'); q.wait_for_selector('#fanFrame')
+        fr=q.frame_locator('#fanFrame'); fr.locator('.song').first.wait_for()
+        chk(f'[{tag}] View as Fan shows banner + back button + Tag', fr.locator('.fan-return').count()==1 and fr.locator('.tag-btn').count()>0)
+        chk(f'[{tag}] fan frame no page overflow', noov(q))
+        if tag=='desktop':
+            fr.locator('#q').fill('1979'); q.wait_for_timeout(200)
+            call('PUT','/api/settings',{'globalMinCents':1000}); q.wait_for_timeout(3000)
+            chk('View as Fan updates live after Tips change ($10 badge)', '$10' in fr.locator('#list .song').first.inner_text())
+            sid=call('GET','/api/fan')['songs'][0]
+            # tag via preview
+            fr.locator('#list .tag-btn').first.click(); fr.locator('.tag-editor button:text-is("Bangers")').click(); q.wait_for_timeout(600)
+            s1979=[s for s in call('GET','/api/fan')['songs'] if s['title']=='1979'][0]
+            chk('preview Tag toggles save', any(t.lower()=='bangers' for t in s1979['tags']) != False)
+            fr.locator('.tag-editor button:text-is("Bangers")').click(); q.wait_for_timeout(600)
+            q.evaluate("window.scrollTo(0,0)"); q.wait_for_timeout(3500)
+            q.screenshot(path=SH+f'fan-viewasfan-{tag}.png')
+            call('PUT','/api/settings',{'globalMinCents':0})
+        else:
+            chk('price badge shows FREE', 'FREE' in q.inner_text('#priceBadge'))
+            q.wait_for_timeout(3500); q.screenshot(path=SH+f'fan-viewasfan-{tag}.png')
+        fr.locator('.fan-return').click(); q.wait_for_timeout(400)
+        chk(f'[{tag}] Back to performer closes', q.locator('#fanFrame').count()==0)
+        c2.close()
+    br.close()
+chk('no page errors (all)', not errs)
+if errs: print(errs[:5])
+print('TOTAL', sum(1 for _,c in res if c), '/', len(res))

@@ -137,6 +137,17 @@ body.ov-solo main{max-width:none;padding:0}
 .ov-artist{color:var(--muted);font-weight:600}
 .ov-tip{background:var(--green);color:#000;border-radius:99px;padding:2px 10px;font-size:13px}
 .ov-more,.ov-empty{color:var(--muted);font-weight:700;text-shadow:0 2px 6px #000}
+.ov-goal{position:absolute;left:16px;right:16px;bottom:14px;background:rgba(0,0,0,.78);border:1px solid rgba(245,185,66,.55);border-radius:12px;padding:8px 12px 10px;font-weight:900;text-shadow:0 2px 6px #000;transition:box-shadow .4s}
+.ov-goal[hidden]{display:none}
+.ov-stage:has(.ov-goal:not([hidden])){padding-bottom:84px}.ov-stage.solo:has(.ov-goal:not([hidden])){padding-bottom:150px}
+.ov-goal .gl{display:flex;justify-content:space-between;align-items:baseline;gap:10px;letter-spacing:.14em;font-size:13px;color:var(--gold)}
+.ov-goal .gl b{color:#fff;letter-spacing:.02em;font-size:16px}
+.ov-goal .gt{height:12px;margin-top:6px;border-radius:99px;background:rgba(255,255,255,.12);overflow:hidden}
+.ov-goal .gf{height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,#b8801f,#f5b942 55%,#ffe7a3);box-shadow:0 0 14px rgba(245,185,66,.7);transition:width 1.2s cubic-bezier(.2,.8,.2,1)}
+.ov-goal.hit{border-color:#ffe7a3;box-shadow:0 0 28px rgba(245,185,66,.85)}
+.ov-goal.hit .gl span{color:#ffe7a3}
+.ov-stage.solo .ov-goal{left:30px;right:30px;bottom:30px;padding:14px 20px 16px}.ov-stage.solo .ov-goal .gl{font-size:22px}.ov-stage.solo .ov-goal .gl b{font-size:30px}.ov-stage.solo .ov-goal .gt{height:20px;margin-top:10px}
+.goalrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.goalrow input[type=number]{width:120px}
 .ov-stage.solo .ov-item{font-size:28px}.ov-stage.solo .ov-item.first{font-size:34px}.ov-stage.solo .ov-title{font-size:22px}
 @media (max-width:720px){.ovgrid{grid-template-columns:minmax(0,1fr)}.toolbar{position:static}.toolbar #tbSong{max-width:100%;width:100%}.sw{width:30px;height:30px}.tbb{padding:8px 11px}.slrow{flex-wrap:wrap}.slrow .c{width:100%}}
 .chip{display:inline-block;background:#222;border:1px solid #444;border-radius:99px;padding:4px 10px;font-size:12px;margin:2px 4px 2px 0}
@@ -1162,7 +1173,25 @@ async function renderMod(){
 }
 
 const OVERLAY_URL = 'https://killer-keys-tip-app.onrender.com/?view=overlay';
-let overlaySeenExplode = null, overlaySeenIds = null, overlaySeq = 0;
+let overlaySeenExplode = null, overlaySeenIds = null, overlaySeq = 0, overlayGoalSeen = null;
+const cad = c => { const d = (Number(c)||0) / 100; return '$' + (d % 1 ? d.toFixed(2) : d.toLocaleString('en-CA')); };
+function fillGoal(stage, g){
+  const box = $('#ovGoal'); if(!box || !g) return;
+  box.hidden = !g.show;
+  const goal = Math.max(1, g.goalCents), now = Math.max(0, g.tallyCents), pct = Math.min(100, now / goal * 100);
+  $('#ovGoalTxt').textContent = cad(now) + ' / ' + cad(goal);
+  const t = $('#ovTally'); if(t) t.textContent = cad(now);
+  $('#ovGoalFill').style.width = pct + '%';
+  box.classList.toggle('hit', now >= goal);
+  const key = goal + ':' + g.resetAt;
+  // celebrate once, only when the tally crosses the goal while this overlay is open
+  if(overlayGoalSeen && overlayGoalSeen.key === key && overlayGoalSeen.now < goal && now >= goal && g.show)
+    setTimeout(() => celebrateGoal(stage, goal), 900);
+  overlayGoalSeen = { key, now };
+}
+function celebrateGoal(stage, goal){
+  if(stage && window.KKOverlayFX) KKOverlayFX.celebrate(stage, { kicker:'★ Tip goal hit ★', title:'Thank you!', badge: cad(goal) + ' reached', tier:'small', color:'#f5b942' });
+}
 let overlayColors = { song:'#f5b942', custom:'#39c2d7', shoutout:'#ff6fa5' };
 const KIND_LABEL = { song:'Request', custom:'Custom request', shoutout:'Shout-out' };
 function overlayMarkup(d){
@@ -1191,6 +1220,7 @@ async function fillOverlay(){
     if(d.colors) overlayColors = Object.assign(overlayColors, d.colors);
     body.innerHTML = overlayMarkup(d);
     const stage = $('#ovStage');
+    fillGoal(stage, d.goal);
     if(overlaySeenExplode !== null && d.explodeAt > overlaySeenExplode && d.test) celebrateItem(stage, Object.assign({ songTitle: d.test.title }, d.test), true);
     const recent = d.recent || [];
     if(overlaySeenIds) recent.filter(x => !overlaySeenIds.has(x.id)).reverse().forEach(x => celebrateItem(stage, x));
@@ -1198,12 +1228,12 @@ async function fillOverlay(){
   }catch(e){ body.innerHTML = '<div class="ov-empty">Could not load the queue (' + esc(e.message) + ')</div>'; }
 }
 async function renderOverlay(){
-  overlaySeenExplode = null; overlaySeenIds = null;
+  overlaySeenExplode = null; overlaySeenIds = null; overlayGoalSeen = null;
   // Full-screen, transparent mode when the overlay URL is opened on its own (OBS / Ecamm browser source).
   const solo = !EMBEDDED && new URLSearchParams(location.search).get('view') === 'overlay';
   if(solo){
     document.body.classList.add('ov-solo');
-    main.innerHTML = `<div class="ov-stage solo" id="ovStage"><div id="ovBody"></div></div>`;
+    main.innerHTML = `<div class="ov-stage solo" id="ovStage"><div id="ovBody"></div><div class="ov-goal" id="ovGoal" hidden><div class="gl"><span>TIP GOAL</span><b id="ovGoalTxt"></b></div><div class="gt"><div class="gf" id="ovGoalFill"></div></div></div></div>`;
   } else {
     let st = {}; try{ st = (await api('/api/settings')).settings || {}; }catch(e){}
     main.innerHTML = `
@@ -1211,7 +1241,7 @@ async function renderOverlay(){
     <div class="ovgrid">
       <div>
         <h2 style="font-size:18px;margin:0 0 8px">Live preview</h2>
-        <div class="ov-stage" id="ovStage"><div id="ovBody"><div class="ov-empty">Loading queue…</div></div></div>
+        <div class="ov-stage" id="ovStage"><div id="ovBody"><div class="ov-empty">Loading queue…</div></div><div class="ov-goal" id="ovGoal" hidden><div class="gl"><span>TIP GOAL</span><b id="ovGoalTxt"></b></div><div class="gt"><div class="gf" id="ovGoalFill"></div></div></div></div>
         <p class="small">Updates every 3 seconds. Every new request sets off a celebration — bigger for bigger tips.</p>
       </div>
       <div class="panel">
@@ -1225,6 +1255,14 @@ async function renderOverlay(){
           <label>Custom<input type="color" id="ovcCustom" value="${esc(st.ovColorCustom||'#39c2d7')}"></label>
           <label>Shout-outs<input type="color" id="ovcShout" value="${esc(st.ovColorShout||'#ff6fa5')}"></label>
         </div>
+        <h2 style="font-size:16px;margin:16px 0 6px">Tip goal</h2>
+        <div class="goalrow">
+          <label for="ovGoalAmt" style="margin:0">Goal $</label>
+          <input type="number" id="ovGoalAmt" min="1" step="1" inputmode="numeric" value="${esc(Math.round((Number(st.tipGoalCents)||40000)/100))}">
+          <button class="btn ghost" id="ovGoalSave">Save goal</button>
+        </div>
+        <label class="goalrow" style="margin-top:10px"><input type="checkbox" id="ovGoalShow" ${st.tipGoalShow === '0' ? '' : 'checked'} style="width:22px;height:22px"> Show goal bar on stream</label>
+        <div class="goalrow" style="margin-top:10px"><span>Tally: <b id="ovTally">${esc(cad(st.tipTallyCents))}</b></span><button class="btn ghost" id="ovTallyReset">Reset tally</button></div>
         <hr>
         <h2 style="font-size:18px">Browser source for Ecamm / OBS</h2>
         <label for="ovPublic">Public address</label>
@@ -1252,6 +1290,21 @@ async function renderOverlay(){
         try{ await api('/api/settings', {method:'PUT', body: JSON.stringify({[key]: el.value})}); toast('Colour saved'); fillOverlay(); }
         catch(e){ toast('Colour not saved: ' + e.message, true); }
       });
+    });
+    $('#ovGoalSave').addEventListener('click', async () => {
+      const dollars = Number($('#ovGoalAmt').value);
+      if(!(dollars >= 1)) return toast('Enter a goal of $1 or more', true);
+      try{ await api('/api/settings', {method:'PUT', body: JSON.stringify({tipGoalCents: Math.round(dollars*100)})}); toast('Tip goal set to ' + cad(Math.round(dollars*100))); fillOverlay(); }
+      catch(e){ toast('Goal not saved: ' + e.message, true); }
+    });
+    $('#ovGoalShow').addEventListener('change', async e => {
+      try{ await api('/api/settings', {method:'PUT', body: JSON.stringify({tipGoalShow: e.target.checked ? '1' : '0'})}); toast(e.target.checked ? 'Goal bar shown on stream' : 'Goal bar hidden on stream'); fillOverlay(); }
+      catch(err){ toast('Not saved: ' + err.message, true); }
+    });
+    $('#ovTallyReset').addEventListener('click', async () => {
+      if(!confirm('Reset the tip tally to $0?')) return;
+      try{ await api('/api/tally/reset', {method:'POST'}); $('#ovTally').textContent = '$0'; toast('Tip tally reset to $0'); fillOverlay(); }
+      catch(e){ toast('Reset failed: ' + e.message, true); }
     });
     $('#ovSave').addEventListener('click', async () => {
       try{ const r = await api('/api/settings', {method:'PUT', body: JSON.stringify({overlayPublicUrl: $('#ovPublic').value})}); $('#ovPublic').value = r.settings.overlayPublicUrl; toast('Public address saved'); }

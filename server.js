@@ -86,7 +86,11 @@ const DEFAULT_SETTINGS = {
   ovColorShout: '#ff6fa5',   // overlay colour: shout-outs
   overlayTest: '',           // last Test explosion payload (JSON)
   socialYoutube: 'https://www.youtube.com/@thekillerkeysofficial', // The Killer Keys YouTube channel (button hidden if cleared)
-  socialInstagram: 'https://www.instagram.com/thekillerkeys/', // Tips page: 0 = Free (tips optional, $5+ if given); else every song without its own min needs this
+  socialInstagram: 'https://www.instagram.com/thekillerkeys/',
+  tipGoalCents: '40000',     // stream overlay tip goal (CAD), editable on the Stream Overlay page
+  tipGoalShow: '1',          // 1 = show the goal bar on stream, 0 = hide it
+  tipTallyCents: '0',        // running tip total since the last "Reset tally" (kept in settings so export-live carries it across deploys)
+  tipTallyResetAt: '0',      // when the tally was last reset (ms)
 };
 const getSettings = () => {
   const out = Object.assign({}, DEFAULT_SETTINGS);
@@ -297,6 +301,7 @@ app.post('/api/queue', (req, res) => {
     "INSERT INTO queue (songId, songTitle, requester, tipCents, status, createdAt, kind, message, customText) VALUES (?, ?, ?, ?, 'queued', ?, ?, ?, ?)"
   ).run(song ? song.id : (b.songId || null), title, String(b.requester || '').slice(0, 60), tip, Date.now(), kind,
     String(b.message || '').slice(0, 300), String(b.customText || '').slice(0, 200));
+  if (tip > 0) setSetting('tipTallyCents', Math.round((Number(getSettings().tipTallyCents) || 0) + tip)); // tip tally for the overlay goal bar
   res.status(201).json({ item: { id: Number(info.lastInsertRowid), songTitle: title, tipCents: tip, kind } });
 });
 
@@ -368,6 +373,17 @@ app.put('/api/settings', (req, res) => {
     if (v && !/^https:\/\/[^\s<>"']+$/i.test(v)) return res.status(400).json({ error: 'Links must start with https://' });
     setSetting(k, v);
   }
+  if (b.tipGoalCents !== undefined) {
+    const v = Math.round(Number(b.tipGoalCents));
+    if (!(v >= 100 && v <= 10000000)) return res.status(400).json({ error: 'Goal must be between $1 and $100,000' });
+    setSetting('tipGoalCents', v);
+  }
+  if (b.tipGoalShow !== undefined) setSetting('tipGoalShow', b.tipGoalShow && b.tipGoalShow !== '0' ? '1' : '0');
+  res.json({ settings: getSettings() });
+});
+// Tip tally: every tipped queue request adds to it (see POST /api/queue); only this resets it.
+app.post('/api/tally/reset', (req, res) => {
+  setSetting('tipTallyCents', 0); setSetting('tipTallyResetAt', Date.now());
   res.json({ settings: getSettings() });
 });
 app.post('/api/overlay/explode', (req, res) => {
@@ -388,6 +404,7 @@ app.get('/api/overlay', (req, res) => {
     .map((r) => ({ id: r.id, songTitle: r.songTitle, artist: r.artist || '', requester: r.requester || '', tipCents: r.tipCents || 0, kind: r.kind || 'song' }));
   res.json({ visible: Number(st.overlayVisible), explodeAt: Number(st.overlayExplodeAt), test, recent,
     colors: { song: st.ovColorSong, custom: st.ovColorCustom, shoutout: st.ovColorShout },
+    goal: { show: st.tipGoalShow !== '0', goalCents: Number(st.tipGoalCents) || 40000, tallyCents: Number(st.tipTallyCents) || 0, resetAt: Number(st.tipTallyResetAt) || 0 },
     queue: rows.slice(0, Number(st.overlayVisible)), total: rows.length });
 });
 
