@@ -219,6 +219,7 @@ let performerMode = true;
 let currentSong = null;
 let currentSetlist = null;
 let makerSetlist = null;
+let makerAdding = false;
 let overlayTimer = null;
 let prevView = 'board';
 let lastSync = null;
@@ -335,6 +336,41 @@ function wireSongRows(root){
   root.querySelectorAll('.song [data-min]').forEach(b => b.addEventListener('click', ev => {
     ev.stopPropagation(); ev.preventDefault();
     openSong(Number(b.dataset.min), {editMin: true});
+  }));
+  root.querySelectorAll('.song [data-addsl]').forEach(b => b.addEventListener('click', ev => {
+    ev.stopPropagation(); ev.preventDefault();
+    pickSetlistFor(Number(b.dataset.addsl));
+  }));
+}
+
+// "Add to setlist" picker: tap a song's + Setlist button, choose which setlist.
+async function pickSetlistFor(songId){
+  const song = songs.find(s => s.id === songId);
+  if(!song) return;
+  let lists = [];
+  try{ const d = await api('/api/setlists'); lists = d.setlists || []; }catch(e){ lists = []; }
+  if(!lists.length){ toast('No setlists yet'); return; }
+  const old = document.getElementById('slPicker');
+  if(old) old.remove();
+  const ov = document.createElement('div');
+  ov.id = 'slPicker';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  ov.innerHTML = `<div style="background:#111;border:1px solid var(--line);border-radius:14px;padding:20px;max-width:420px;width:100%">
+    <h2 style="margin:0 0 4px">Add to setlist</h2>
+    <p class="small" style="margin:0 0 14px">${esc(song.title)} — ${esc(song.artist||'')}</p>
+    ${lists.map(sl=>`<button class="btn" style="width:100%;margin-bottom:8px" data-pick="${sl.id}">${esc(sl.name)} (${sl.songs.length} songs)</button>`).join('')}
+    <button class="btn ghost" style="width:100%" id="slPickCancel">Cancel</button>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener('click', e => { if(e.target === ov) ov.remove(); });
+  ov.querySelector('#slPickCancel').addEventListener('click', () => ov.remove());
+  ov.querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', async () => {
+    const sl = lists.find(x => x.id === Number(b.dataset.pick));
+    if(!sl) return;
+    const next = sl.songs.concat([{title: song.title, artist: song.artist||'', off: 0}]);
+    await api('/api/setlists/'+sl.id, {method:'PUT', body: JSON.stringify({songs: next})});
+    ov.remove();
+    toast('Added to ' + sl.name);
   }));
 }
 
@@ -685,6 +721,7 @@ function songRow(s){
     </div>
     ${s.hasChart?'<span title="Has chart" style="font-size:20px">&#127926;</span>':''}
     ${min}
+    <button class="btn ghost sm" data-addsl="${s.id}" title="Add to setlist">+ Setlist</button>
     <span title="Requestable" style="font-size:18px">&#127908;</span>
     <span class="chev">&rsaquo;</span>
   </div>`;
@@ -704,6 +741,7 @@ async function openSong(id, opts){
     <div class="btnrow">
       <button class="btn" id="editBtn">Edit song &amp; chart</button>
       <button class="btn ghost" id="queueBtn">+ Add to queue</button>
+      <button class="btn ghost" id="addSlBtn">+ Add to setlist</button>
       <button class="btn ghost" id="favBtn">${song.favorite?'&#9733; Unfavorite':'&#9734; Favorite'}</button>
       <button class="btn ghost" id="visBtn">${song.visible?'Hide from board':'Show on board'}</button>
     </div>
@@ -748,6 +786,7 @@ async function openSong(id, opts){
     $('#favBtn').addEventListener('click', async () => { await api('/api/songs/'+id, {method:'PUT', body: JSON.stringify({favorite: !song.favorite})}); toast(song.favorite?'Removed from favorites':'Added to favorites'); await loadSongs(); openSong(id, opts); });
     $('#visBtn').addEventListener('click', async () => { await api('/api/songs/'+id, {method:'PUT', body: JSON.stringify({visible: !song.visible})}); toast(song.visible?'Hidden from board':'Shown on board'); await loadSongs(); openSong(id, opts); });
     $('#queueBtn').addEventListener('click', async () => { await api('/api/queue', {method:'POST', body: JSON.stringify({songId: id, songTitle: song.title, performer: true})}); toast('Added "'+song.title+'" to the queue'); });
+    $('#addSlBtn').addEventListener('click', () => pickSetlistFor(id));
     $('#editBtn').addEventListener('click', () => renderSongEditor(song, 'eTitle', opts));
     $('#minBtn').addEventListener('click', () => renderSongEditor(song, 'eMin', opts));
     if(opts.editMin) renderSongEditor(song, 'eMin', opts);
@@ -1109,7 +1148,7 @@ async function renderSetlists(){
     toast(next ? '"'+sl.name+'" is visible to viewers' : '"'+sl.name+'" is hidden from viewers');
   }));
   main.querySelectorAll('[data-load]').forEach(b => b.addEventListener('click', async () => {
-    makerSetlist = Number(b.dataset.load); view = 'maker'; currentSetlist = null;
+    makerSetlist = Number(b.dataset.load); makerAdding = false; view = 'maker'; currentSetlist = null;
     document.querySelectorAll('#topnav button').forEach(x => x.classList.toggle('on', x.dataset.view === 'maker'));
     await renderMaker(); freshView(); toast('Loaded into Setlist Maker');
   }));
@@ -1239,56 +1278,65 @@ async function renderMaker(){
   try{ const d = await api('/api/setlists'); setlists = d.setlists || []; }catch(e){ setlists = []; }
   if(makerSetlist){
     const sl = setlists.find(s => s.id === makerSetlist);
-    if(!sl){ makerSetlist = null; return renderMaker(); }
+    if(!sl){ makerSetlist = null; makerAdding = false; return renderMaker(); }
+    if(makerAdding){
+      // Dedicated add screen: search the catalogue, every hit has "Add to setlist".
+      main.innerHTML = `
+      <p><a href="#" id="mkAddBack" style="color:var(--gold);font-weight:700">&lsaquo; Back to ${esc(sl.name)}</a></p>
+      <h1 style="font-size:32px">Add to ${esc(sl.name)}</h1>
+      <div class="panel"><h2>Search the catalogue</h2>
+        <input type="text" id="mkQ" placeholder="Search songs...">
+        <div id="mkResults" style="margin-top:10px"></div>
+        <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:14px">
+          <h3 style="margin:0 0 8px">Not in the catalogue? Add it as a new song</h3>
+          <label>Title</label><input type="text" id="mkNewTitle" placeholder="Song title">
+          <label>Artist</label><input type="text" id="mkNewArtist" placeholder="Artist (optional)">
+          <div class="btnrow"><button class="btn" id="mkAddNew">Add new song to setlist</button></div>
+        </div>
+      </div>`;
+      $('#mkAddBack').addEventListener('click', e => { e.preventDefault(); makerAdding = false; renderMaker().then(freshView); });
+      $('#mkQ').addEventListener('input', e => {
+        const q = e.target.value.trim().toLowerCase();
+        const box = $('#mkResults');
+        if(!q){ box.innerHTML=''; return; }
+        const hits = songs.filter(s => s.title.toLowerCase().includes(q) || (s.artist||'').toLowerCase().includes(q)).slice(0,8);
+        box.innerHTML = hits.map(s=>`<div class="setlist-row"><div><div class="n">${esc(s.title)}</div><div class="small">${esc(s.artist||'')}</div></div><span class="c"><button class="btn" data-add="${s.id}">Add to setlist</button></span></div>`).join('') || '<p class="empty">No matches.</p>';
+        if(!hits.length) $('#mkNewTitle').value = e.target.value.trim();
+        box.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', async () => {
+          const s = songs.find(x => x.id === Number(b.dataset.add));
+          if(!s) return;
+          const next = sl.songs.concat([{title: s.title, artist: s.artist||'', off: 0}]);
+          await api('/api/setlists/'+sl.id, {method:'PUT', body: JSON.stringify({songs: next})});
+          toast('Added to setlist'); makerAdding = false; renderMaker();
+        }));
+      });
+      // New song (not in the catalogue yet): create the catalogue entry AND add it
+      // to this setlist in one tap, so you never have to leave the maker.
+      $('#mkAddNew').addEventListener('click', async () => {
+        const title = $('#mkNewTitle').value.trim();
+        const artist = $('#mkNewArtist').value.trim();
+        if(!title){ toast('Title is required'); return; }
+        const d = await api('/api/songs', {method:'POST', body: JSON.stringify({title, artist})});
+        const created = d.song;
+        if(created) songs.push(created);
+        const next = sl.songs.concat([{title: created ? created.title : title, artist: created ? (created.artist||'') : artist, off: 0}]);
+        await api('/api/setlists/'+sl.id, {method:'PUT', body: JSON.stringify({songs: next})});
+        toast('Added new song to setlist'); makerAdding = false; renderMaker();
+      });
+      return;
+    }
     main.innerHTML = `
     <p><a href="#" id="mkBack" style="color:var(--gold);font-weight:700">&lsaquo; Back to Setlist Maker</a></p>
-    <h1 style="font-size:32px">${esc(sl.name)}</h1>
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap"><h1 style="font-size:32px;margin:0">${esc(sl.name)}</h1><button class="btn" id="mkAddBtn">Add song</button></div>
     <p class="lede">${sl.songs.length} songs</p>
-    <div id="mkList">${sl.songs.map((e,i)=>`<div class="setlist-row"><div><div class="n">${i+1}. ${esc(e.title)}</div><div class="small">${esc(e.artist||'')}</div></div><span class="c"><button class="btn ghost" data-rm="${i}">Remove</button></span></div>`).join('') || '<p class="empty">No songs in this setlist yet.</p>'}</div>
-    <div class="panel" style="margin-top:18px"><h2>Add a song</h2>
-      <input type="text" id="mkQ" placeholder="Search the catalogue...">
-      <div id="mkResults" style="margin-top:10px"></div>
-      <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:14px">
-        <h3 style="margin:0 0 8px">Not in the catalogue? Add it as a new song</h3>
-        <label>Title</label><input type="text" id="mkNewTitle" placeholder="Song title">
-        <label>Artist</label><input type="text" id="mkNewArtist" placeholder="Artist (optional)">
-        <div class="btnrow"><button class="btn" id="mkAddNew">Add new song to setlist</button></div>
-      </div>
-    </div>`;
-    $('#mkBack').addEventListener('click', e => { e.preventDefault(); makerSetlist = null; renderMaker().then(freshView); });
+    <div id="mkList">${sl.songs.map((e,i)=>`<div class="setlist-row"><div><div class="n">${i+1}. ${esc(e.title)}</div><div class="small">${esc(e.artist||'')}</div></div><span class="c"><button class="btn ghost" data-rm="${i}">Remove</button></span></div>`).join('') || '<p class="empty">No songs in this setlist yet.</p>'}</div>`;
+    $('#mkBack').addEventListener('click', e => { e.preventDefault(); makerSetlist = null; makerAdding = false; renderMaker().then(freshView); });
+    $('#mkAddBtn').addEventListener('click', () => { makerAdding = true; renderMaker().then(freshView); });
     main.querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', async () => {
       const remaining = sl.songs.filter((_,i)=>i!==Number(b.dataset.rm));
       await api('/api/setlists/'+sl.id, {method:'PUT', body: JSON.stringify({songs: remaining})});
       toast('Removed from setlist'); renderMaker();
     }));
-    $('#mkQ').addEventListener('input', e => {
-      const q = e.target.value.trim().toLowerCase();
-      const box = $('#mkResults');
-      if(!q){ box.innerHTML=''; return; }
-      const hits = songs.filter(s => s.title.toLowerCase().includes(q) || (s.artist||'').toLowerCase().includes(q)).slice(0,8);
-      box.innerHTML = hits.map(s=>`<div class="setlist-row"><div><div class="n">${esc(s.title)}</div><div class="small">${esc(s.artist||'')}</div></div><span class="c"><button class="btn" data-add="${s.id}">Add</button></span></div>`).join('') || '<p class="empty">No matches.</p>';
-      if(!hits.length) $('#mkNewTitle').value = e.target.value.trim();
-      box.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', async () => {
-        const s = songs.find(x => x.id === Number(b.dataset.add));
-        if(!s) return;
-        const next = sl.songs.concat([{title: s.title, artist: s.artist||'', off: 0}]);
-        await api('/api/setlists/'+sl.id, {method:'PUT', body: JSON.stringify({songs: next})});
-        toast('Added to setlist'); renderMaker();
-      }));
-    });
-    // New song (not in the catalogue yet): create the catalogue entry AND add it
-    // to this setlist in one tap, so you never have to leave the maker.
-    $('#mkAddNew').addEventListener('click', async () => {
-      const title = $('#mkNewTitle').value.trim();
-      const artist = $('#mkNewArtist').value.trim();
-      if(!title){ toast('Title is required'); return; }
-      const d = await api('/api/songs', {method:'POST', body: JSON.stringify({title, artist})});
-      const created = d.song;
-      if(created) songs.push(created);
-      const next = sl.songs.concat([{title: created ? created.title : title, artist: created ? (created.artist||'') : artist, off: 0}]);
-      await api('/api/setlists/'+sl.id, {method:'PUT', body: JSON.stringify({songs: next})});
-      toast('Added new song to setlist'); renderMaker();
-    });
     return;
   }
   main.innerHTML = `
@@ -1298,7 +1346,7 @@ async function renderMaker(){
     <label>Name</label><input type="text" id="mkName" placeholder="Setlist name">
     <div class="btnrow"><button class="btn" id="mkCreate">Create setlist</button></div>
   </div>`;
-  main.querySelectorAll('[data-mk]').forEach(el => el.addEventListener('click', async () => { makerSetlist = Number(el.dataset.mk); await renderMaker(); freshView(); }));
+  main.querySelectorAll('[data-mk]').forEach(el => el.addEventListener('click', async () => { makerSetlist = Number(el.dataset.mk); makerAdding = false; await renderMaker(); freshView(); }));
   $('#mkCreate').addEventListener('click', async () => {
     const name = $('#mkName').value.trim(); if(!name){ toast('Name is required'); return; }
     await api('/api/setlists', {method:'POST', body: JSON.stringify({name, songs: []})});
@@ -1582,7 +1630,7 @@ window.addEventListener('message', e => { if(e.data && e.data.kk === 'closeFan' 
 function setView(v){
   stopAutoScroll();
   if(v === 'fan' && view !== 'fan') prevView = view;
-  view = v; currentSetlist = null; makerSetlist = null;
+  view = v; currentSetlist = null; makerSetlist = null; makerAdding = false;
   if(overlayTimer){ clearInterval(overlayTimer); overlayTimer = null; }
   const nav = document.getElementById('topnav');
   const solo = v==='overlay' && !EMBEDDED && new URLSearchParams(location.search).get('view') === 'overlay';
