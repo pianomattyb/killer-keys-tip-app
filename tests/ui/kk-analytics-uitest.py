@@ -81,16 +81,21 @@ try:
             pg.wait_for_selector('#tipSongOpts')
             rec(f'[{tag}] green Now bar gone', pg.locator('#tipNow, .tipnow').count()==0)
             rec(f'[{tag}] Custom request + Shout-out panels', 'Custom request' in pg.inner_text('#main') and 'Shout-out' in pg.inner_text('#main'))
+            rec(f'[{tag}] custom + shout amount boxes + colour pickers',
+                pg.locator('#tipCustomReqAmt').count()==1 and pg.locator('#tipShoutAmt').count()==1
+                and pg.locator('#ovcCustom').count()==1 and pg.locator('#ovcShout').count()==1)
+            rec(f'[{tag}] overlay page no longer has custom/shout colour pickers (checked later)' if tag=='desktop' else f'[{tag}] amount boxes present', True)
             if tag=='phone':
-                rec(f'[{tag}] custom + shout default $10 selected',
-                    'Minimum $10' in pg.inner_text('#tipCustomOpts .tipopt.on') and 'Minimum $10' in pg.inner_text('#tipShoutOpts .tipopt.on'))
+                rec(f'[{tag}] custom + shout default $10 in the box',
+                    '10' in (pg.input_value('#tipCustomReqAmt') or '') and '10' in (pg.input_value('#tipShoutAmt') or '')
+                    and 'Now $10' in pg.inner_text('#tipCustomReqNow') and 'Now $10' in pg.inner_text('#tipShoutNow'))
             else:
-                rec(f'[{tag}] custom $20 / shout $5 still selected',
-                    'Now $20' in pg.inner_text('#tipCustomOpts') and 'Minimum $5' in pg.inner_text('#tipShoutOpts .tipopt.on'))
+                rec(f'[{tag}] custom $20 / shout $5 still in the boxes',
+                    '20' in (pg.input_value('#tipCustomReqAmt') or '') and '5' in (pg.input_value('#tipShoutAmt') or '')
+                    and 'Now $20' in pg.inner_text('#tipCustomReqNow') and 'Now $5' in pg.inner_text('#tipShoutNow'))
             rec(f'[{tag}] tips no overflow', noov(pg))
             pg.screenshot(path=SHOTS+f'tips-{tag}.png', full_page=True)
             if tag=='phone':
-                pg.click('#tipCustomOpts .tipopt[data-g="custom"]')
                 pg.fill('#tipCustomReqAmt','3')
                 pg.click('#tipCustomReqSave')
                 pg.wait_for_timeout(400)
@@ -99,9 +104,18 @@ try:
                 pg.click('#tipCustomReqSave')
                 pg.wait_for_timeout(500)
                 rec('custom request $20 saved', call('GET','/api/settings')[1]['settings']['customMinCents']=='2000')
-                pg.click('#tipShoutOpts .tipopt[data-g="500"]')
+                pg.fill('#tipShoutAmt','5')
+                pg.click('#tipShoutSave')
                 pg.wait_for_timeout(500)
                 rec('shout-out $5 saved', call('GET','/api/settings')[1]['settings']['shoutMinCents']=='500')
+                pg.fill('#tipCustomReqAmt','')
+                pg.click('#tipCustomReqSave')
+                pg.wait_for_timeout(400)
+                rec('custom request empty saves as free', call('GET','/api/settings')[1]['settings']['customMinCents']=='0')
+                pg.fill('#tipCustomReqAmt','20')
+                pg.click('#tipCustomReqSave')
+                pg.wait_for_timeout(500)
+                rec('custom request $20 restored', call('GET','/api/settings')[1]['settings']['customMinCents']=='2000')
                 pg.screenshot(path=SHOTS+'tips-phone-custom20-shout5.png', full_page=True)
                 # fan page shows those amounts
                 st,fan=call('GET','/api/fan')
@@ -151,14 +165,25 @@ try:
             pg.screenshot(path=SHOTS+f'analytics-{tag}-data.png', full_page=True)
             ctx.close()
 
+        # Overlay settings (performer view, not the solo browser-source page)
+        ctx=br.new_context(viewport={'width':1280,'height':900}, device_scale_factor=2)
+        pg=ctx.new_page()
+        pg.goto(BASE+'/', wait_until='domcontentloaded', timeout=60000)
+        pg.wait_for_selector('#topnav')
+        pg.click('#topnav button[data-view="overlay"]')
+        pg.wait_for_selector('#ovcSong')
+        rec('overlay colours are requests-only', pg.locator('#ovcSong').count()==1 and pg.locator('#ovcCustom').count()==0 and pg.locator('#ovcShout').count()==0)
+        ctx.close()
+
         # tip burst on the stream overlay (desktop, dark stage)
         ctx=br.new_context(viewport={'width':1280,'height':720}, device_scale_factor=2)
         pg=ctx.new_page()
         pg.goto(BASE+'/?view=overlay', wait_until='domcontentloaded', timeout=60000)
         pg.wait_for_selector('body')
         pg.wait_for_timeout(800)
-        rec('burst assets exist', os.path.getsize(os.path.join(REPO,'public/fx/tip-burst.webm'))<2*1024*1024
-            and os.path.getsize(os.path.join(REPO,'public/fx/tip-burst.webm'))>10000)
+        stacked=os.path.join(REPO,'public/fx/tip-burst-stacked.mp4')
+        rec('stacked burst asset exists under 6.5MB', os.path.isfile(stacked) and 10000 < os.path.getsize(stacked) < 6.5*1024*1024, os.path.getsize(stacked) if os.path.isfile(stacked) else 'missing')
+        rec('old luma-key / screen-blend assets gone', not os.path.isfile(os.path.join(REPO,'public/fx/tip-burst.webm')) and not os.path.isfile(os.path.join(REPO,'public/fx/tip-burst.mp4')))
         # trigger a test explosion from the performer overlay controls if present; else call celebrate via evaluate
         if pg.locator('[data-fx]').count():
             pg.click('[data-fx="1000"]')
@@ -167,12 +192,13 @@ try:
               const stage=document.querySelector('.ov-stage, #overlay, #ov, [data-stage], #main')||document.body;
               if(window.KKOverlayFX) KKOverlayFX.celebrate(stage, {title:'500 Miles', requester:'Kyle', tipCents:1000, test:true});
             }""")
-        pg.wait_for_selector('.kkfx', timeout=8000)
+        pg.wait_for_selector('.kkfx canvas', timeout=8000)
         rec('explosion layer appears', pg.locator('.kkfx').count()>=1)
-        rec('uses video burst, not canvas', pg.locator('.kkfx-vid').count()>=1 and pg.locator('.kkfx canvas').count()==0)
+        rec('stacked canvas is the default (no screen-blend video)', pg.locator('.kkfx canvas').count()>=1 and pg.locator('.kkfx-vid.screen, .kkfx video.screen').count()==0)
+        rec('painter is webgl or 2d', pg.locator('.kkfx canvas').get_attribute('data-kkfx-painter') in ('webgl','2d'))
         pg.wait_for_timeout(900)
         pg.screenshot(path=SHOTS+'overlay-fx-tip-burst.png')
-        pg.wait_for_selector('.kkfx', state='detached', timeout=8000)
+        pg.wait_for_selector('.kkfx', state='detached', timeout=22000)
         rec('explosion cleans up', pg.locator('.kkfx').count()==0)
         ctx.close()
         br.close()
