@@ -43,10 +43,12 @@ async def main():
         # lede gone
         txt = await app.evaluate("document.querySelector('#main').innerText")
         rec('7 intro paragraph removed', 'Requests are free' not in txt)
-        for t in ['Bangers','Country','Medleys','Most requested','80s']:
+        rec('Most requested chip hidden until after first show', not await app.locator('.filters button[data-tag="Most requested"]').count())
+        rec('Analytics nav button present', await app.locator('#topnav button[data-view="analytics"]').count()==1)
+        for t in ['Bangers','Country','Medleys','80s']:
             await app.click(f'.filters button[data-tag="{t}"]'); await pg.wait_for_timeout(150)
             n = await app.locator('.song').count(); em = await app.evaluate("(document.querySelector('#list .empty')||{}).textContent||''")
-            rec(f'chip {t}', n>0 or (t=='Most requested' and 'No requests yet' in em), (n, em[:50]))
+            rec(f'chip {t}', n>0, (n, em[:50]))
         # user scrolls the Wix page a bit, then searches and opens a charted song
         await pg.mouse.wheel(0, 300); await pg.wait_for_timeout(300)
         await app.click('.filters button[data-tag="All"]')

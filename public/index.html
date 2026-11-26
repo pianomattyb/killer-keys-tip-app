@@ -111,10 +111,27 @@ textarea{min-height:120px;font-family:ui-monospace,Menlo,Consolas,monospace}
 .tipopt.on{border-color:var(--gold);background:#241b05}
 .tipopt.on b{color:var(--gold)}
 .tipcustom{display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap}
+.tipcustom[hidden]{display:none !important}
 .tipcustom .amt{display:flex;align-items:center;gap:6px;background:#101013;border:1px solid var(--line);border-radius:10px;padding:0 12px;min-height:46px}
 .tipcustom input{background:transparent;border:0;outline:0;color:var(--text);font-size:17px;width:90px;padding:10px 0}
 .tipnow{margin-top:16px;background:#12351f;border:1px solid #2f6b3f;color:#cdeac2;border-radius:12px;padding:12px 14px;font-size:15px;line-height:1.5}
 .tipnow b{color:#8ff07a}
+.tipnote{margin-top:12px;color:var(--muted);font-size:13.5px;line-height:1.45}
+.an-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:14px 0 18px}
+@media(min-width:700px){.an-stats{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.an-stat{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.an-stat b{display:block;font-size:26px;font-weight:900;letter-spacing:.01em;line-height:1.15}
+.an-stat span{color:var(--muted);font-size:12.5px;font-weight:600}
+.an-sort{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 12px}
+.an-sort button{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:99px;padding:8px 14px;font-weight:700;cursor:pointer;font-size:14px;min-height:38px}
+.an-sort button.on{background:var(--gold);color:#000;border-color:var(--gold)}
+.an-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:8px}
+.an-row .n{font-weight:800;font-size:16px;line-height:1.25;min-width:0}
+.an-row .c{text-align:right;white-space:nowrap;font-weight:800;flex:none}
+.an-row .c b{color:var(--gold);display:block}
+.an-row .kind{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:1px 8px;margin-left:6px;vertical-align:2px}
+.an-night{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 16px;margin-bottom:8px;display:flex;justify-content:space-between;gap:12px;align-items:baseline}
+.an-empty{color:var(--muted);padding:28px 8px;font-size:16px;line-height:1.5}
 .ownmins{margin-top:10px}
 .ownmins .setlist-row .c b{color:var(--gold)}
 .fanstage{display:flex;flex-direction:column;align-items:center;gap:12px}
@@ -195,6 +212,7 @@ hr{border:0;border-top:1px solid var(--line);margin:18px 0}
   <button data-view="import" class="gold">+ Smart Import</button>
   <button data-view="fan" class="fanbtn">&#128241; View as Fan</button>
   <button data-view="tips">Tips</button>
+  <button data-view="analytics">Analytics</button>
   <button data-view="queue">Performer Queue</button>
   <button data-view="maker">Setlist Maker</button>
   <button data-view="setlists">Setlists</button>
@@ -225,6 +243,9 @@ let prevView = 'board';
 let lastSync = null;
 
 const TAGS = ['Favorites','All','60s','70s','80s','90s','2000s','2010s','2020s','Country','Medleys','Bangers','Most requested','Elton John','Billy Joel'];
+const SHOW_MOST_REQUESTED = false; // flip to true the night after the first show (also lib/request-log.js)
+let analyticsSort = 'requests';
+let analyticsCache = null;
 // ---- Embed-aware viewport helpers ----
 // Inside the Wix page the app runs in a tall iframe (1200-1700 px) inside a
 // shorter browser window. Anything positioned against the iframe's own
@@ -309,13 +330,14 @@ function visibleSongs(){
 }
 
 function renderBoard(){
+  if(!SHOW_MOST_REQUESTED && filterTag==='Most requested') filterTag = 'Favorites';
   const list = visibleSongs();
   main.innerHTML = `
     <div class="syncrow"><span id="syncStamp">Last synced ${fmtSync(lastSync)}</span><button class="btn sync" id="syncBtn">Sync now</button></div>
     <h1>REQUEST A <span>$ONG</span></h1>
     <div class="search"><input id="q" type="text" placeholder="Search songs or artists..." value="${esc(searchQ)}"><button id="dictBtn" title="Dictation">&#127908; Dictate</button></div>
     <div id="dictMsg"></div>
-    <div class="filters">${TAGS.map(t=>`<button data-tag="${t}" class="${filterTag===t?'on':''}">${t==='Favorites'?'&#9733; ':''}${t}</button>`).join('')}</div>
+    <div class="filters">${(SHOW_MOST_REQUESTED?TAGS:TAGS.filter(t=>t!=='Most requested')).map(t=>`<button data-tag="${t}" class="${filterTag===t?'on':''}">${t==='Favorites'?'&#9733; ':''}${t}</button>`).join('')}</div>
     <div id="list">${list.length ? list.map(songRow).join('') : (filterTag==='Most requested' && !searchQ ? '<div class="empty">No requests yet tonight — songs show up here once fans request them.</div>' : '<div class="empty">No songs match. Try another search or filter.</div>')}</div>`;
   $('#q').addEventListener('input', e => { searchQ = e.target.value; renderListOnly(); });
   $('#q').addEventListener('keydown', e => { if(e.key==='Enter') e.target.blur(); });
@@ -1528,31 +1550,79 @@ async function loadSongs(){
 }
 
 
-/* ---------- Tips page: one global request price ---------- */
+/* ---------- Analytics: running tally of every fan request ---------- */
+async function renderAnalytics(){
+  main.innerHTML = `<h1 style="font-size:32px">ANALYTICS</h1><p class="lede">Loading…</p>`;
+  try{ analyticsCache = await api('/api/analytics'); }
+  catch(e){ main.innerHTML = `<h1 style="font-size:32px">ANALYTICS</h1><p class="lede">Could not load analytics. ${esc(e.message)}</p>`; return; }
+  paintAnalytics();
+}
+function paintAnalytics(){
+  const d = analyticsCache || { totals:{requests:0,tipCents:0,nights:0,songs:0}, kinds:{}, nights:[], songs:[] };
+  const m = c => '$' + (c % 100 ? (c/100).toFixed(2) : String(c/100));
+  const empty = !d.totals.requests;
+  const kindLabel = k => k === 'custom' ? 'Custom request' : k === 'shoutout' ? 'Shout-out' : '';
+  const songs = (d.songs || []).slice().sort((a,b) => analyticsSort === 'money'
+    ? (b.tipCents - a.tipCents || b.requests - a.requests || a.title.localeCompare(b.title))
+    : (b.requests - a.requests || b.tipCents - a.tipCents || a.title.localeCompare(b.title)));
+  const t = d.totals;
+  main.innerHTML = `
+  <h1 style="font-size:32px">ANALYTICS</h1>
+  <p class="lede">Every fan request is counted here — playing, declining, or clearing the queue does not erase it.</p>
+  ${empty ? `<p class="an-empty">No requests yet. Stats start with your first show.</p>` : `
+  <div class="an-stats">
+    <div class="an-stat"><b>${t.requests}</b><span>Requests</span></div>
+    <div class="an-stat"><b>${m(t.tipCents)}</b><span>Tip money</span></div>
+    <div class="an-stat"><b>${t.songs}</b><span>Songs requested</span></div>
+    <div class="an-stat"><b>${t.nights}</b><span>Show night${t.nights===1?'':'s'}</span></div>
+  </div>
+  <h2 style="font-size:20px;margin:8px 0 10px">By night</h2>
+  ${(d.nights||[]).map(n => `<div class="an-night"><div><div class="n" style="font-weight:800">${esc(n.label||n.showDate)}</div><div class="small">${n.requests} request${n.requests===1?'':'s'}</div></div><b>${m(n.tipCents)}</b></div>`).join('')}
+  <h2 style="font-size:20px;margin:22px 0 8px">By song</h2>
+  <div class="an-sort">
+    <button type="button" data-asort="requests" class="${analyticsSort==='requests'?'on':''}">Most requested</button>
+    <button type="button" data-asort="money" class="${analyticsSort==='money'?'on':''}">Most money</button>
+  </div>
+  ${songs.map(s => `<div class="an-row"><div class="n">${esc(s.title)}${s.kind!=='song'?`<span class="kind">${esc(kindLabel(s.kind))}</span>`:''}<div class="small">${esc(s.artist||'') || (s.kind==='song'?'':'')}</div></div><div class="c"><b>${m(s.tipCents)}</b><span class="small">${s.requests} request${s.requests===1?'':'s'}</span></div></div>`).join('')}`}`;
+  main.querySelectorAll('[data-asort]').forEach(b => b.addEventListener('click', () => { analyticsSort = b.dataset.asort; paintAnalytics(); }));
+}
+
+/* ---------- Tips page: song, custom-request, and shout-out prices ---------- */
 async function renderTips(){
-  let cur = 0;
   let soc = {};
-  try{ const d = await api('/api/settings'); soc = d.settings || {}; cur = Number(soc.globalMinCents) || 0; }catch(e){}
-  setPriceBadge(cur);
+  try{ const d = await api('/api/settings'); soc = d.settings || {}; }catch(e){}
+  const songCur = Number(soc.globalMinCents) || 0;
+  const customCur = soc.customMinCents === undefined || soc.customMinCents === '' ? 1000 : Number(soc.customMinCents);
+  const shoutCur = soc.shoutMinCents === undefined || soc.shoutMinCents === '' ? 1000 : Number(soc.shoutMinCents);
+  setPriceBadge(songCur);
   const own = songs.filter(s => Number(s.minTipCents) > 0).sort((a,b) => b.minTipCents - a.minTipCents || a.title.localeCompare(b.title));
   const m = c => '$' + (c % 100 ? (c/100).toFixed(2) : String(c/100));
-  const mode = cur === 0 ? 'free' : cur === 500 ? '5' : cur === 1000 ? '10' : 'custom';
+  const modeOf = c => c === 0 ? 'free' : c === 500 ? '5' : c === 1000 ? '10' : 'custom';
+  const pricePanel = (key, heading, blurb, cents, ids) => {
+    const mode = modeOf(cents);
+    return `<div class="panel" ${key==='song'?'':'style="margin-top:14px"'}>
+    <h2 style="font-size:20px;margin:0 0 6px">${heading}</h2>
+    <p class="small" style="margin:0 0 8px">${blurb}</p>
+    <div class="tipopts" id="${ids.opts}">
+      <button class="tipopt ${mode==='free'?'on':''}" data-pk="${key}" data-g="0"><b>Free</b><small>${key==='song'?'Requests need no tip. Tips are optional ($5+ if they tip).':'No tip needed.'}</small></button>
+      <button class="tipopt ${mode==='5'?'on':''}" data-pk="${key}" data-g="500"><b>Minimum $5</b><small>Needs a $5+ tip.</small></button>
+      <button class="tipopt ${mode==='10'?'on':''}" data-pk="${key}" data-g="1000"><b>Minimum $10</b><small>Needs a $10+ tip.</small></button>
+      <button class="tipopt ${mode==='custom'?'on':''}" data-pk="${key}" data-g="custom"><b>Custom</b><small>${mode==='custom' ? 'Now ' + m(cents) + '.' : 'Pick your own amount.'}</small></button>
+    </div>
+    <div class="tipcustom" id="${ids.row}" ${mode==='custom'?'':'hidden'}>
+      <span class="amt">$<input type="text" inputmode="decimal" id="${ids.amt}" value="${mode==='custom' ? (cents/100) : ''}" placeholder="e.g. 15" aria-label="${heading} price in dollars"></span>
+      <button class="btn" id="${ids.save}">Save custom price</button>
+    </div>
+  </div>`;
+  };
+  const note = `Song requests: ${songCur===0?'Free':m(songCur)}. Custom requests: ${customCur===0?'Free':m(customCur)}. Shout-outs: ${shoutCur===0?'Free':m(shoutCur)}. ${own.length} song${own.length===1?'':'s'} keep${own.length===1?'s':''} ${own.length===1?'its':'their'} own minimum.`;
   main.innerHTML = `
   <h1 style="font-size:32px">TIPS</h1>
-  <p class="lede">Set one price for every request on the fan page. Songs with their own minimum tip <b>always keep it</b> — this never overrides them.</p>
-  <div class="panel">
-    <div class="tipopts">
-      <button class="tipopt ${mode==='free'?'on':''}" data-g="0"><b>Free</b><small>Requests need no tip. Tips are optional ($5+ if they tip).</small></button>
-      <button class="tipopt ${mode==='5'?'on':''}" data-g="500"><b>Minimum $5</b><small>Every request needs a $5+ tip.</small></button>
-      <button class="tipopt ${mode==='10'?'on':''}" data-g="1000"><b>Minimum $10</b><small>Every request needs a $10+ tip.</small></button>
-      <button class="tipopt ${mode==='custom'?'on':''}" data-g="custom"><b>Custom</b><small>${mode==='custom' ? 'Now ' + m(cur) + ' per request.' : 'Pick your own amount.'}</small></button>
-    </div>
-    <div class="tipcustom" id="tipCustomRow" ${mode==='custom'?'':'hidden'}>
-      <span class="amt">$<input type="text" inputmode="decimal" id="tipCustomAmt" value="${mode==='custom' ? (cur/100) : ''}" placeholder="e.g. 15" aria-label="Custom request price in dollars"></span>
-      <button class="btn" id="tipCustomSave">Save custom price</button>
-    </div>
-    <div class="tipnow" id="tipNow"></div>
-  </div>
+  <p class="lede">Set prices for the fan page. Songs with their own minimum tip <b>always keep it</b> — this never overrides them.</p>
+  ${pricePanel('song','Song requests','Price for songs that do not have their own minimum.', songCur, {opts:'tipSongOpts',row:'tipCustomRow',amt:'tipCustomAmt',save:'tipCustomSave'})}
+  ${pricePanel('custom','Custom request','When a fan asks for a song that is not on the board.', customCur, {opts:'tipCustomOpts',row:'tipCustomReqRow',amt:'tipCustomReqAmt',save:'tipCustomReqSave'})}
+  ${pricePanel('shout','Shout-out','When a fan sends a shout-out, not a song.', shoutCur, {opts:'tipShoutOpts',row:'tipShoutRow',amt:'tipShoutAmt',save:'tipShoutSave'})}
+  <p class="tipnote" id="tipSummary">${note}</p>
   <h2 style="font-size:20px;margin:22px 0 4px">Fan page links</h2>
   <div class="panel">
     <label for="socYt">YouTube channel <span class="small">(button hidden while empty)</span></label>
@@ -1564,38 +1634,42 @@ async function renderTips(){
   <h2 style="font-size:20px;margin:22px 0 4px">Songs with their own minimum (${own.length})</h2>
   <p class="small" style="margin:0 0 8px">These keep their price no matter what's set above. Change one by editing that song.</p>
   <div class="ownmins">${own.map(s => `<div class="setlist-row"><div style="min-width:0;flex:1;cursor:pointer" data-opensong="${s.id}"><div class="n">${esc(s.title)}</div><div class="small">${esc(s.artist||'')}</div></div><span class="c"><b>${m(s.minTipCents)}</b></span></div>`).join('') || '<p class="empty">No songs have their own minimum.</p>'}</div>`;
-  const showNow = c => {
-    $('#tipNow').innerHTML = c === 0
-      ? `Now: <b>Free</b> — fans can request any song with no tip (tips optional, $5 or more). Custom requests and shout-outs still need $10. ${own.length} signature song${own.length===1?'':'s'} keep${own.length===1?'s':''} ${own.length===1?'its':'their'} own minimum.`
-      : `Now: <b>${m(c)} minimum</b> on every request without its own price. Custom requests and shout-outs need ${m(Math.max(1000,c))}. ${own.length} signature song${own.length===1?'':'s'} keep${own.length===1?'s':''} ${own.length===1?'its':'their'} own minimum.`;
+  const settingKey = { song:'globalMinCents', custom:'customMinCents', shout:'shoutMinCents' };
+  const savedMsg = (key, cents) => {
+    const who = key==='song' ? 'Song requests' : key==='custom' ? 'Custom requests' : 'Shout-outs';
+    return cents === 0 ? who + ' are now free' : who + ' now need a ' + m(cents) + ' minimum tip';
   };
-  showNow(cur);
-  const save = async (cents) => {
+  const save = async (key, cents) => {
     try{
-      await api('/api/settings', {method:'PUT', body: JSON.stringify({globalMinCents: cents})});
-      toast(cents === 0 ? 'Requests are now free' : 'Requests now need a ' + m(cents) + ' minimum tip');
+      await api('/api/settings', {method:'PUT', body: JSON.stringify({[settingKey[key]]: cents})});
+      toast(savedMsg(key, cents));
       renderTips(); pingFan();
     }catch(e){ toast('Did not save: ' + e.message, true); }
   };
-  main.querySelectorAll('[data-g]').forEach(b => b.addEventListener('click', () => {
-    if(b.dataset.g === 'custom'){
-      main.querySelectorAll('[data-g]').forEach(x => x.classList.toggle('on', x === b));
-      $('#tipCustomRow').hidden = false; $('#tipCustomAmt').focus(); return;
-    }
-    save(Number(b.dataset.g));
-  }));
-  const saveCustom = () => {
-    const v = Math.round(parseFloat(String($('#tipCustomAmt').value).replace(/[^0-9.]/g,'')) * 100);
-    if(!(v >= 500)){ toast('Enter $5 or more (or pick Free)', true); return; }
-    if(v > 100000){ toast('That is over $1000 — enter a smaller amount', true); return; }
-    save(v);
+  const wirePanel = (key, amtId, saveId, rowId, optsId) => {
+    document.querySelectorAll('#'+optsId+' [data-g]').forEach(b => b.addEventListener('click', () => {
+      if(b.dataset.g === 'custom'){
+        document.querySelectorAll('#'+optsId+' [data-g]').forEach(x => x.classList.toggle('on', x === b));
+        $('#'+rowId).hidden = false; $('#'+amtId).focus(); return;
+      }
+      save(key, Number(b.dataset.g));
+    }));
+    const saveCustom = () => {
+      const v = Math.round(parseFloat(String($('#'+amtId).value).replace(/[^0-9.]/g,'')) * 100);
+      if(!(v >= 500)){ toast('Enter $5 or more (or pick Free)', true); return; }
+      if(v > 100000){ toast('That is over $1000 — enter a smaller amount', true); return; }
+      save(key, v);
+    };
+    $('#'+saveId).addEventListener('click', saveCustom);
+    $('#'+amtId).addEventListener('keydown', e => { if(e.key === 'Enter') saveCustom(); });
   };
-  $('#tipCustomSave').addEventListener('click', saveCustom);
+  wirePanel('song','tipCustomAmt','tipCustomSave','tipCustomRow','tipSongOpts');
+  wirePanel('custom','tipCustomReqAmt','tipCustomReqSave','tipCustomReqRow','tipCustomOpts');
+  wirePanel('shout','tipShoutAmt','tipShoutSave','tipShoutRow','tipShoutOpts');
   $('#socSave').addEventListener('click', async () => {
     try{ await api('/api/settings', {method:'PUT', body: JSON.stringify({socialYoutube: $('#socYt').value.trim(), socialInstagram: $('#socIg').value.trim()})}); toast('Fan page links saved'); pingFan(); }
     catch(e){ toast('Links not saved: ' + e.message, true); }
   });
-  $('#tipCustomAmt').addEventListener('keydown', e => { if(e.key === 'Enter') saveCustom(); });
   main.querySelectorAll('[data-opensong]').forEach(el => el.addEventListener('click', () => openSong(Number(el.dataset.opensong))));
 }
 
@@ -1624,7 +1698,7 @@ function renderFanPreview(){
   $('#fanClose').addEventListener('click', closeFanPreview);
   $('#fanReload').addEventListener('click', () => { $('#fanFrame').src = '/fan?preview=1&t=' + Date.now(); });
 }
-function closeFanPreview(){ setView(['board','qr','add','import','queue','maker','setlists','mod','overlay','notes','tips'].includes(prevView) ? prevView : 'board'); }
+function closeFanPreview(){ setView(['board','qr','add','import','queue','maker','setlists','mod','overlay','notes','tips','analytics'].includes(prevView) ? prevView : 'board'); }
 window.addEventListener('message', e => { if(e.data && e.data.kk === 'closeFan' && view === 'fan') closeFanPreview(); });
 
 function setView(v){
@@ -1647,6 +1721,7 @@ function setView(v){
   else if(v==='overlay') renderOverlay();
   else if(v==='notes') renderNotes();
   else if(v==='tips') renderTips();
+  else if(v==='analytics') renderAnalytics();
   else if(v==='fan') renderFanPreview();
   freshView();
 }
@@ -1659,7 +1734,7 @@ document.querySelectorAll('#topnav button').forEach(b => b.addEventListener('cli
   await loadSongs();
   lastSync = new Date();
   const v = new URLSearchParams(location.search).get('view');
-  if (v && ['board','qr','add','import','queue','maker','setlists','mod','overlay','notes','tips','fan'].includes(v)) setView(v);
+  if (v && ['board','qr','add','import','queue','maker','setlists','mod','overlay','notes','tips','analytics','fan'].includes(v)) setView(v);
   else renderBoard();
 })();
 </script>

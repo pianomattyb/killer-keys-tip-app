@@ -72,18 +72,18 @@ with sync_playwright() as p:
     # performer: Tips page + View as Fan
     for w,h,tag in [(390,844,'phone'),(1280,900,'desktop')]:
         c2=br.new_context(viewport={'width':w,'height':h}, device_scale_factor=2, is_mobile=(w<500), has_touch=(w<500)); q=c2.new_page(); q.on('pageerror', lambda e: errs.append(str(e)))
-        q.goto(B+'/'); q.wait_for_selector('#topnav'); q.click('#topnav button[data-view="tips"]'); q.wait_for_selector('.tipopt')
-        chk(f'[{tag}] tips page renders, Free selected', 'Free' in q.inner_text('.tipopt.on'))
+        q.goto(B+'/'); q.wait_for_selector('#topnav'); q.click('#topnav button[data-view="tips"]'); q.wait_for_selector('#tipSongOpts .tipopt')
+        chk(f'[{tag}] tips page renders, Free selected', 'Free' in q.inner_text('#tipSongOpts .tipopt.on'))
         chk(f'[{tag}] tips no overflow', noov(q)); q.screenshot(path=SH+f'fan-tips-{tag}.png', full_page=(tag=='phone'))
         if tag=='phone':
-            q.click('.tipopt[data-g="1000"]'); q.wait_for_timeout(500)
-            chk('tap Minimum $10 saves', call('GET','/api/settings')['settings']['globalMinCents']=='1000' and 'Minimum $10' in q.inner_text('.tipopt.on'))
-            q.click('.tipopt[data-g="custom"]'); q.fill('#tipCustomAmt','3'); q.click('#tipCustomSave'); q.wait_for_timeout(400)
+            q.click('#tipSongOpts .tipopt[data-g="1000"]'); q.wait_for_timeout(500)
+            chk('tap Minimum $10 saves', call('GET','/api/settings')['settings']['globalMinCents']=='1000' and 'Minimum $10' in q.inner_text('#tipSongOpts .tipopt.on'))
+            q.click('#tipSongOpts .tipopt[data-g="custom"]'); q.fill('#tipCustomAmt','3'); q.click('#tipCustomSave'); q.wait_for_timeout(400)
             chk('custom $3 refused', call('GET','/api/settings')['settings']['globalMinCents']=='1000')
             q.fill('#tipCustomAmt','15'); q.click('#tipCustomSave'); q.wait_for_timeout(500)
             chk('custom $15 saved', call('GET','/api/settings')['settings']['globalMinCents']=='1500')
             q.screenshot(path=SH+'fan-tips-phone-custom15.png', full_page=True)
-            q.click('.tipopt[data-g="0"]'); q.wait_for_timeout(500)
+            q.click('#tipSongOpts .tipopt[data-g="0"]'); q.wait_for_timeout(500)
             chk('back to Free', call('GET','/api/settings')['settings']['globalMinCents']=='0')
         # View as Fan
         q.click('#topnav button[data-view="fan"]'); q.wait_for_selector('#fanFrame')

@@ -10,5 +10,7 @@
  "tipGoalCents": "40000",
  "tipGoalShow": "1",
  "tipTallyCents": "0",
- "tipTallyResetAt": "0"
+ "tipTallyResetAt": "0",
+ "customMinCents": "1000",
+ "shoutMinCents": "1000"
 }

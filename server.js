@@ -6,6 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const { DatabaseSync } = require('node:sqlite');
 const { sanitizeNote } = require('./lib/sanitize');
+const { SHOW_MOST_REQUESTED, createRequestLogTable, logFanRequest, exportRows, importRows, songCounts, summarize } = require('./lib/request-log');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -71,6 +72,7 @@ CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
 try { db.exec('ALTER TABLE setlists ADD COLUMN viewers INTEGER DEFAULT 1'); } catch (e) { /* already there */ }
 // Rich-text chart (Apple-Notes style): sanitized HTML. Empty = derive from chartHtml in the browser.
 try { db.exec("ALTER TABLE songs ADD COLUMN noteHtml TEXT DEFAULT ''"); } catch (e) { /* already there */ }
+createRequestLogTable(db);
 // Viewer requests: kind = song | custom | shoutout, plus the fan's message / custom song text.
 for (const col of ["kind TEXT DEFAULT 'song'", "message TEXT DEFAULT ''", "customText TEXT DEFAULT ''"]) {
   try { db.exec('ALTER TABLE queue ADD COLUMN ' + col); } catch (e) { /* already there */ }
@@ -91,6 +93,8 @@ const DEFAULT_SETTINGS = {
   tipGoalShow: '1',          // 1 = show the goal bar on stream, 0 = hide it
   tipTallyCents: '0',        // running tip total since the last "Reset tally" (kept in settings so export-live carries it across deploys)
   tipTallyResetAt: '0',      // when the tally was last reset (ms)
+  customMinCents: '1000',    // custom-request minimum on the fan page (editable on Tips)
+  shoutMinCents: '1000',     // shout-out minimum on the fan page (editable on Tips)
 };
 const getSettings = () => {
   const out = Object.assign({}, DEFAULT_SETTINGS);
@@ -123,15 +127,14 @@ app.get('/api/songs', (req, res) => {
   if (visibleOnly) rows = rows.filter((r) => r.visible);
   if (fav) rows = rows.filter((r) => r.favorite);
   if (tag && tag !== 'All') {
-    if (tag === 'Most requested') { /* no request counts yet; fall through to all */ }
+    if (tag === 'Most requested') { /* counts come from request_log below */ }
     else { const t = tag.toLowerCase(); rows = rows.filter((r) => JSON.parse(r.tags || '[]').some((x) => String(x).toLowerCase() === t)); }
   }
   if (q) {
     rows = rows.filter((r) =>
       r.title.toLowerCase().includes(q) || (r.artist || '').toLowerCase().includes(q));
   }
-  const counts = {};
-  for (const c of db.prepare('SELECT songId, COUNT(*) n FROM queue WHERE songId IS NOT NULL GROUP BY songId').all()) counts[c.songId] = c.n;
+  const counts = songCounts(db);
   if (tag === 'Most requested') rows = rows.filter((r) => counts[r.id]).sort((a, b) => counts[b.id] - counts[a.id]);
   const full = req.query.full === '1';
   res.json({ songs: rows.map((r) => Object.assign(rowToListSong(r, full), { requestCount: counts[r.id] || 0 })) });
@@ -273,10 +276,24 @@ app.get('/api/queue', (req, res) => {
 // ---- tip rules (one place, used by the viewer page and request validation) ----
 // A song's own minimum ALWAYS wins (set on the song). Otherwise the global Tips-page
 // setting applies. Free (0) = no tip needed; any tip given must still be $5 or more.
-const TIP_FLOOR = 500, SPECIAL_MIN = 1000; // custom request / shout-out minimum
+const TIP_FLOOR = 500;
+const parseTipMin = (v, label) => {
+  const n = Math.round(Number(v));
+  if (!(n >= 0 && n <= 100000)) return { error: (label || 'Minimum') + ' must be between $0 and $1000' };
+  if (n > 0 && n < 500) return { error: 'Tips start at $5 — pick Free or $5 or more' };
+  return { ok: n };
+};
 const globalMin = () => Math.max(0, Number(getSettings().globalMinCents) || 0);
+const settingMin = (key, fallback) => {
+  const raw = getSettings()[key];
+  if (raw === undefined || raw === null || raw === '') return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) ? Math.max(0, n) : fallback;
+};
+const customMin = () => settingMin('customMinCents', 1000);
+const shoutMin = () => settingMin('shoutMinCents', 1000);
 const requiredFor = (song) => (song && Number(song.minTipCents) > 0 ? Number(song.minTipCents) : globalMin());
-const requiredForKind = (kind, song) => (kind === 'song' ? requiredFor(song) : Math.max(SPECIAL_MIN, globalMin()));
+const requiredForKind = (kind, song) => (kind === 'song' ? requiredFor(song) : kind === 'custom' ? customMin() : shoutMin());
 const money = (c) => '$' + (c % 100 ? (c / 100).toFixed(2) : String(c / 100));
 
 app.post('/api/queue', (req, res) => {
@@ -302,6 +319,10 @@ app.post('/api/queue', (req, res) => {
   ).run(song ? song.id : (b.songId || null), title, String(b.requester || '').slice(0, 60), tip, Date.now(), kind,
     String(b.message || '').slice(0, 300), String(b.customText || '').slice(0, 200));
   if (tip > 0) setSetting('tipTallyCents', Math.round((Number(getSettings().tipTallyCents) || 0) + tip)); // tip tally for the overlay goal bar
+  // Fan requests only: a performer "+ Add to queue" is not a fan request and is not logged.
+  if (!b.performer) {
+    logFanRequest(db, { songId: song ? song.id : null, title, artist: song ? (song.artist || '') : '', tipCents: tip, kind, createdAt: Date.now() });
+  }
   res.status(201).json({ item: { id: Number(info.lastInsertRowid), songTitle: title, tipCents: tip, kind } });
 });
 
@@ -323,7 +344,9 @@ app.get('/api/fan', (req, res) => {
     .map((r) => ({ id: r.id, title: r.title, artist: r.artist || '', tags: JSON.parse(r.tags || '[]'), favorite: !!r.favorite,
       ownMinCents: Number(r.minTipCents) || 0, requiredCents: Number(r.minTipCents) > 0 ? Number(r.minTipCents) : gm }));
   const st0 = getSettings();
-  res.json({ social: { youtube: st0.socialYoutube || '', instagram: st0.socialInstagram || '' }, songs, globalMinCents: gm, specialMinCents: Math.max(SPECIAL_MIN, gm), tipFloorCents: TIP_FLOOR,
+  const cMin = customMin(), sMin = shoutMin();
+  res.json({ social: { youtube: st0.socialYoutube || '', instagram: st0.socialInstagram || '' }, songs, globalMinCents: gm,
+    customMinCents: cMin, shoutMinCents: sMin, specialMinCents: cMin, tipFloorCents: TIP_FLOOR,
     viewerSetlists: lists.map((l) => l.name), version: fanVersion() });
 });
 // A cheap change stamp so View as Fan can refresh only when something changed.
@@ -332,7 +355,7 @@ const fanVersion = () => {
   const l = db.prepare('SELECT COALESCE(SUM(id*31+COALESCE(viewers,1)),0) h FROM setlists').get();
   const e = db.prepare('SELECT COUNT(*) n, COALESCE(SUM(COALESCE(off,0)*position),0) h FROM setlist_entries').get();
   const st = getSettings();
-  return [a.n, a.h, l.h, e.n, e.h, globalMin(), (st.socialYoutube || '').length + ':' + (st.socialInstagram || '').length + ':' + (st.socialYoutube || '').slice(-6) + (st.socialInstagram || '').slice(-6)].join('.');
+  return [a.n, a.h, l.h, e.n, e.h, globalMin(), customMin(), shoutMin(), (st.socialYoutube || '').length + ':' + (st.socialInstagram || '').length + ':' + (st.socialYoutube || '').slice(-6) + (st.socialInstagram || '').slice(-6)].join('.');
 };
 app.get('/api/fan/version', (req, res) => res.json({ version: fanVersion() }));
 
@@ -351,10 +374,15 @@ app.put('/api/settings', (req, res) => {
   const b = req.body || {};
   if (b.overlayVisible !== undefined) setSetting('overlayVisible', Math.max(1, Math.min(10, Number(b.overlayVisible) || 3)));
   if (b.globalMinCents !== undefined) {
-    const v = Math.round(Number(b.globalMinCents));
-    if (!(v >= 0 && v <= 100000)) return res.status(400).json({ error: 'Global minimum must be between $0 and $1000' });
-    if (v > 0 && v < 500) return res.status(400).json({ error: 'Tips start at $5 — pick Free or $5 or more' });
-    setSetting('globalMinCents', v);
+    const p = parseTipMin(b.globalMinCents, 'Global minimum');
+    if (p.error) return res.status(400).json({ error: p.error });
+    setSetting('globalMinCents', p.ok);
+  }
+  for (const [key, label] of [['customMinCents', 'Custom request price'], ['shoutMinCents', 'Shout-out price']]) {
+    if (b[key] === undefined) continue;
+    const p = parseTipMin(b[key], label);
+    if (p.error) return res.status(400).json({ error: p.error });
+    setSetting(key, p.ok);
   }
   if (b.overlayPublicUrl !== undefined) {
     const u = String(b.overlayPublicUrl).trim();
@@ -408,6 +436,10 @@ app.get('/api/overlay', (req, res) => {
     queue: rows.slice(0, Number(st.overlayVisible)), total: rows.length });
 });
 
+// ---- analytics (permanent request log; survives queue clear and deploys via export-live) ----
+app.get('/api/analytics', (req, res) => res.json(summarize(db)));
+app.get('/api/analytics/export', (req, res) => res.json({ requests: exportRows(db) }));
+
 // ---- notes ----
 app.get('/api/notes', (req, res) => {
   const r = db.prepare('SELECT body FROM notes WHERE id = 1').get();
@@ -459,8 +491,11 @@ app.put('/api/notes', (req, res) => {
       }
       const notesPath = path.join(DATA_DIR, 'notes.json');
       if (fs.existsSync(notesPath)) db.prepare('UPDATE notes SET body = ? WHERE id = 1').run(String(JSON.parse(fs.readFileSync(notesPath, 'utf8')).body || ''));
+      const logPath = path.join(DATA_DIR, 'request-log.json');
+      let nLog = 0;
+      if (fs.existsSync(logPath)) nLog = importRows(db, JSON.parse(fs.readFileSync(logPath, 'utf8')));
       db.exec('COMMIT');
-      console.log(`autoSeed: seeded ${songs.length} songs, ${setlists.length} setlists`);
+      console.log(`autoSeed: seeded ${songs.length} songs, ${setlists.length} setlists, ${nLog} request log rows`);
     } catch (e) { try { db.exec('ROLLBACK'); } catch (_) {} throw e; }
   } catch (e) { console.log('autoSeed failed:', e.message); }
 })();

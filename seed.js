@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { DatabaseSync } = require('node:sqlite');
 const { sanitizeNote } = require('./lib/sanitize');
+const { createRequestLogTable, importRows } = require('./lib/request-log');
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const DB_PATH = path.join(DATA_DIR, 'app.db');
@@ -60,12 +61,14 @@ if (fs.existsSync(chartsPath)) {
 }
 
 try { db.exec("ALTER TABLE songs ADD COLUMN noteHtml TEXT DEFAULT ''"); } catch (e) { /* already there */ }
+createRequestLogTable(db);
 db.exec('BEGIN');
 try {
   db.prepare('DELETE FROM setlist_entries').run();
   db.prepare('DELETE FROM setlists').run();
   db.prepare('DELETE FROM songs').run();
   db.prepare('DELETE FROM queue').run();
+  db.prepare('DELETE FROM request_log').run();
 
   const insSong = db.prepare(
     `INSERT INTO songs (id, title, artist, tags, favorite, visible, hasChart, chartSource, minTipCents, chartHtml, chartSize, chartSpacing, noteHtml)
@@ -90,6 +93,9 @@ try {
     insList.run(sl.id, sl.name, sl.date || '', sl.status || 'saved');
     (sl.songs || []).forEach((e, i) => insEntry.run(sl.id, i, e.title, e.artist || '', e.off ? 1 : 0));
   }
+  const logPath = path.join(ROOT, 'request-log.json');
+  let nLog = 0;
+  if (fs.existsSync(logPath)) nLog = importRows(db, JSON.parse(fs.readFileSync(logPath, 'utf8')));
 db.exec('COMMIT');
 } catch (e) { try { db.exec('ROLLBACK'); } catch (_) {} throw e; }
 
@@ -97,5 +103,6 @@ const nSongs = db.prepare('SELECT COUNT(*) c FROM songs').get().c;
 const nCharts = db.prepare('SELECT COUNT(*) c FROM songs WHERE hasChart = 1').get().c;
 const nLists = db.prepare('SELECT COUNT(*) c FROM setlists').get().c;
 const nEntries = db.prepare('SELECT COUNT(*) c FROM setlist_entries').get().c;
-console.log(`Seeded: ${nSongs} songs (${nCharts} with charts), ${nLists} setlists, ${nEntries} setlist entries`);
+const nReq = db.prepare('SELECT COUNT(*) c FROM request_log').get().c;
+console.log(`Seeded: ${nSongs} songs (${nCharts} with charts), ${nLists} setlists, ${nEntries} setlist entries, ${nReq} request log rows`);
 db.close();

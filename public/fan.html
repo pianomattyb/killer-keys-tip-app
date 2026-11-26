@@ -126,7 +126,7 @@ const PREVIEW = new URLSearchParams(location.search).get('preview') === '1';
 const app = document.getElementById('app');
 const TAGS = [['50s','50s'],['60s','60s'],['70s','70s'],['80s','80s'],['90s','90s'],['2000s','2000s'],['2010s','2010s'],['2020s','2020s'],['country','Country'],['medleys','Medleys'],['bangers','Bangers']];
 const CHIPS = [['favorites','★ Favorites'],['all','All'],['60s','60s'],['70s','70s'],['80s','80s'],['90s','90s'],['2000s','2000s'],['2010s','2010s'],['2020s','2020s'],['country','Country'],['medleys','Medleys'],['bangers','Bangers']];
-const st = { songs:[], globalMin:0, specialMin:1000, floor:500, viewerSetlists:[], version:'', era:'favorites', q:'', req:null, sent:null, tagOpen:null, scrollY:0 };
+const st = { songs:[], globalMin:0, customMin:1000, shoutMin:1000, specialMin:1000, floor:500, viewerSetlists:[], version:'', era:'favorites', q:'', req:null, sent:null, tagOpen:null, scrollY:0 };
 
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money = c => '$' + (Math.round(c)/100).toFixed(2).replace(/\.00$/,'');
@@ -147,7 +147,7 @@ window.addEventListener('resize', setHdr);
 async function load(){
   const d = await api('/api/fan');
   st.songs = d.songs.map(s => Object.assign(s, { tagKeys: (s.tags||[]).map(tagKey) }));
-  st.globalMin = d.globalMinCents; st.specialMin = d.specialMinCents; st.floor = d.tipFloorCents;
+  st.globalMin = d.globalMinCents; st.customMin = d.customMinCents ?? d.specialMinCents ?? 1000; st.shoutMin = d.shoutMinCents ?? d.specialMinCents ?? 1000; st.specialMin = st.customMin; st.floor = d.tipFloorCents;
   st.viewerSetlists = d.viewerSetlists || []; st.version = d.version; st.social = d.social || {};
 }
 
@@ -245,7 +245,7 @@ function toggleTag(id, key){
 }
 
 /* ---------- request flow ---------- */
-function needFor(req){ return req.mode === 'song' ? req.song.requiredCents : st.specialMin; }
+function needFor(req){ return req.mode === 'song' ? req.song.requiredCents : req.mode === 'custom' ? st.customMin : st.shoutMin; }
 function openReq(req){
   st.scrollY = window.scrollY; st.req = req; st.sent = null;
   const need = needFor(req);

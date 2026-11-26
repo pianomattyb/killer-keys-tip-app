@@ -13,6 +13,7 @@ async function get(p) {
       const r = await fetch(BASE + p, { signal: AbortSignal.timeout(70000) });
       if (r.ok) return r.json();
       if (r.status === 404 && p === '/api/settings') return { settings: {} }; // older build
+      if (r.status === 404 && p === '/api/analytics/export') return { requests: [] }; // older build, before analytics
       throw new Error('HTTP ' + r.status);
     } catch (e) { if (i === 5) throw e; await new Promise((s) => setTimeout(s, 5000)); }
   }
@@ -23,6 +24,7 @@ async function get(p) {
   const { setlists } = await get('/api/setlists');
   const { settings } = await get('/api/settings');
   const notes = await get('/api/notes');
+  const log = await get('/api/analytics/export');
   if (!Array.isArray(songs) || songs.length < 100) throw new Error('refusing to export: only ' + (songs || []).length + ' songs came back');
   const songRows = songs.map((s) => ({
     artist: s.artist || '', chartSource: s.chartSource || null, favorite: !!s.favorite,
@@ -45,6 +47,8 @@ async function get(p) {
   fs.writeFileSync(path.join(OUT, 'setlists-export-2026-11-24.json'), JSON.stringify(lists));
   fs.writeFileSync(path.join(OUT, 'settings.json'), JSON.stringify(st, null, 1));
   fs.writeFileSync(path.join(OUT, 'notes.json'), JSON.stringify({ body: notes.body || '' }));
+  const requests = (log && Array.isArray(log.requests)) ? log.requests : [];
+  fs.writeFileSync(path.join(OUT, 'request-log.json'), JSON.stringify({ requests }));
   console.log(`tip tally ${st.tipTallyCents || 0}c of goal ${st.tipGoalCents || 40000}c`);
-  console.log(`exported ${songRows.length} songs (${Object.keys(charts).length} charts), ${lists.length} setlists (${lists.map((l) => l.name + ': ' + l.songs.length).join(', ')}) to ${OUT}`);
+  console.log(`exported ${songRows.length} songs (${Object.keys(charts).length} charts), ${lists.length} setlists (${lists.map((l) => l.name + ': ' + l.songs.length).join(', ')}), ${requests.length} request log rows to ${OUT}`);
 })().catch((e) => { console.error('EXPORT FAILED:', e.message); process.exit(1); });
