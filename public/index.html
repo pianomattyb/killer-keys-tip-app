@@ -74,6 +74,14 @@ textarea{min-height:120px;font-family:ui-monospace,Menlo,Consolas,monospace}
 .lockstat.dirty{color:var(--gold)}
 .small-btn{padding:7px 14px;font-size:13px}
 .toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:10px;position:sticky;top:0;z-index:5}
+/* Chart uses the full screen width on wide displays. The 1000px main column leaves
+   ~2 inches of black on each side of the chart on a laptop — wasted space the lyrics
+   could use, so the text can be bigger without wrapping to another line. On phones
+   the main column is already full-width, so this only kicks in above 1040px
+   (1000px column + 20px padding each side). */
+@media (min-width: 1041px){
+  .charthead, .toolbar, #chartBox{width:calc(100vw - 40px);margin-left:calc(50% - 50vw + 20px)}
+}
 .toolbar select{width:auto;max-width:260px;padding:8px 10px;font-size:14px}
 .toolbar .tbl{display:flex;align-items:center;gap:6px;margin:0;font-size:12px;color:var(--muted);font-weight:700}
 .toolbar input[type=range]{width:90px;accent-color:var(--gold)}
@@ -550,7 +558,7 @@ function noteFromChart(chart){
       pos += t.length; }
     return out;
   };
-  const chordSpan = c => `<span class="ch" style="color: ${c.color}">${esc(c.name)})</span>`;
+  const chordSpan = c => `<span class="ch" style="color: ${c.color}">${esc(c.name)}</span>)`;
   const outLines = [];
   for(let i = 0; i < lines.length; i++){
     const a = lines[i], ci = chordInfo(a), b = lines[i+1];
@@ -777,12 +785,14 @@ async function saveChart(song, extra){
   song.chartSize = body.chartSize; song.chartSpacing = body.chartSpacing;
 }
 // ---- auto-scroll: a gentle, steady glide inside the chart box ----
-// Speed 1..10 maps to 3..60 px per second on an exponential curve (default 3 = ~6.5 px/s,
-// about one lyric line every 4 seconds). Start: one smooth page scroll brings the toolbar
+// Speed 1..10 maps to 1.5..60 px per second on an exponential curve (default 3 = ~3.4 px/s,
+// about one lyric line every 7 seconds). Start: one smooth page scroll brings the toolbar
 // to the top of what you can see, the box is sized to the rest, then the speed eases in
-// over ~1.2 s and moves with sub-pixel steps. Touching, wheeling or dragging the chart
-// pauses it; Start resumes from where you are. Stops at the end.
-const AUTO_MIN = 3, AUTO_MAX = 60;
+// over ~1.2 s and moves with sub-pixel steps. SPACE BAR starts and stops it — it is the
+// only way to stop it besides the Start/Stop button and reaching the end. Wheeling,
+// touching, dragging or clicking the chart does NOT stop it; if you move the chart
+// yourself the scroll just carries on from where you left it. Stops at the end.
+const AUTO_MIN = 1.5, AUTO_MAX = 60;
 function autoPxPerSec(s){ return AUTO_MIN * Math.pow(AUTO_MAX / AUTO_MIN, (Number(s) - 1) / 9); }
 try{ const v = Number(localStorage.getItem('kkAutoSpeed')); if(v >= 1 && v <= 10) autoSpeed = v; }catch(e){}
 let autoPrep = null;
@@ -792,7 +802,6 @@ function stopAutoScroll(msg){
   const b = document.getElementById('tbScroll'); if(b) b.innerHTML = '&#9654; Start';
   if(msg) toast(msg);
 }
-function autoUserInterrupt(){ if(autoTimer || autoPrep) stopAutoScroll('Auto-scroll paused — tap Start to carry on'); }
 function startAutoScroll(){
   const box = $('#chartBox'); if(!box) return;
   const tb = $('#toolbar');
@@ -828,6 +837,20 @@ function startAutoScroll(){
     autoTimer = requestAnimationFrame(step);
   }, delay);
 }
+// Space bar toggles auto-scroll: press once to start, press again to stop. It is the
+// ONLY keyboard way to stop it — wheeling, touching, dragging or clicking the chart
+// never stops it. Space is ignored while the user is typing (input / textarea / select
+// / contenteditable chart) or when a button has focus (space already clicks it).
+document.addEventListener('keydown', e => {
+  if(e.code !== 'Space' && e.key !== ' ') return;
+  const t = e.target;
+  if(!t) return;
+  const tag = (t.tagName || '').toUpperCase();
+  if(tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON' || t.isContentEditable) return;
+  if(!document.getElementById('chartBox')) return;
+  e.preventDefault();
+  if(autoTimer || autoPrep) stopAutoScroll(); else startAutoScroll();
+});
 function inChart(range){ const box = $('#chartBox'); return range && box && box.contains(range.commonAncestorContainer); }
 function restoreSel(){
   const sel = getSelection();
@@ -905,7 +928,6 @@ function wireChartToolbar(song, opts){
   $('#tbSize').addEventListener('input', typeChanged);
   $('#tbSpacing').addEventListener('input', typeChanged);
   $('#tbSpeed').addEventListener('input', e => { autoSpeed = Number(e.target.value); $('#tbSpeedV').textContent = autoSpeed; try{ localStorage.setItem('kkAutoSpeed', autoSpeed); }catch(_){} });
-  ['wheel','touchstart','mousedown','keydown'].forEach(ev => box.addEventListener(ev, autoUserInterrupt, {passive:true}));
   $('#tbScroll').addEventListener('click', () => { if(autoTimer || autoPrep) stopAutoScroll(); else startAutoScroll(); });
 
   // Two-finger pinch (iPhone/iPad + Safari gesture events) and Mac trackpad
