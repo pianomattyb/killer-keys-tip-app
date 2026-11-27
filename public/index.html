@@ -807,7 +807,15 @@ async function openSong(id, opts){
         await renderSetlists();
         const row = main.querySelector('[data-row="'+opts.setlist+'-'+opts.idx+'"]');
         bringIntoView(row || main);
-      } else setView(opts.back || 'board');
+      } else if(opts.back && opts.back !== 'board'){
+        setView(opts.back);
+      } else {
+        view = 'board'; makerSetlist = null; main.style.paddingBottom = '';
+        document.querySelectorAll('#topnav button').forEach(b => b.classList.toggle('on', b.dataset.view === 'board'));
+        renderBoard();
+        const row = main.querySelector('.song[data-id="'+id+'"]');
+        bringIntoView(row || main);
+      }
     });
     $('#favBtn').addEventListener('click', async () => { await api('/api/songs/'+id, {method:'PUT', body: JSON.stringify({favorite: !song.favorite})}); toast(song.favorite?'Removed from favorites':'Added to favorites'); await loadSongs(); openSong(id, opts); });
     $('#visBtn').addEventListener('click', async () => { await api('/api/songs/'+id, {method:'PUT', body: JSON.stringify({visible: !song.visible})}); toast(song.visible?'Hidden from board':'Shown on board'); await loadSongs(); openSong(id, opts); });
